@@ -10,18 +10,9 @@
 #include "freertos/task.h"
 #include "mcp2515.h"
 #include "sdkconfig.h"
+
 #define BMP_SDA_GPIO GPIO_NUM_21
 #define BMP_SCL_GPIO GPIO_NUM_22
-
-/* tmp
-GPIO 13 - INT
-GPIO 12 - SCK
-GPIO 14 - SI
-GPIO 27 - SO
-GPIO 26 - CS
-*/
-
-#define CAN_CTRL 0x0E  // tmp for testing
 
 #define MCP_MISO GPIO_NUM_27
 #define MCP_MOSI GPIO_NUM_14
@@ -31,8 +22,10 @@ GPIO 26 - CS
 
 #define I2C_PORT I2C_NUM_0
 
+#define NETWORK_TEMP_ID     0x100
+#define NETWORK_PRESSURE_ID 0x101
+
 void app_main(void) {
-    /**/
     i2c_master_bus_config_t i2c_buscfg = {
         .i2c_port = I2C_PORT,
         .sda_io_num = BMP_SDA_GPIO,
@@ -64,24 +57,8 @@ void app_main(void) {
 
     mcp2515_init(&mcp2515, &mcp_cfg);
 
-    mcp2515_opmode_t canstat;
-    mcp2515_get_opmode(&mcp2515, &canstat);
-    printf("CANSTAT = 0x%02X\n", canstat);
-
     mcp2515_set_opmode(&mcp2515, MCP_OPMODE_LOOPBACK);
-    mcp2515_get_opmode(&mcp2515, &canstat);
-    printf("CANSTAT = 0x%02X\n", canstat);
 
-    // while (1) {
-    // bmp280_measurements measurements;
+    mcp2515_transmit(&mcp2515, NETWORK_TEMP_ID, 25, 5);
 
-    // ESP_ERROR_CHECK(bmp280_force_measurement(&bmp280, 100));
-
-    // ESP_ERROR_CHECK(bmp280_read(&bmp280, &measurements));
-
-    // printf("temperature: %.02f C\n", measurements.temperature);
-    // printf("pressure: %.02f Pa\n", measurements.pressure);
-
-    // vTaskDelay(pdMS_TO_TICKS(1000));
-    // }
 }
