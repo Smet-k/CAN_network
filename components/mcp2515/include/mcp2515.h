@@ -30,6 +30,12 @@ typedef enum {
     MCP_PRIORITY_HIGHEST
 } mcp2515_priority_t;
 
+typedef struct {
+    uint16_t id;
+    uint8_t dlc;
+    uint8_t data[8];
+} can_frame_t;
+
 esp_err_t mcp2515_init(mcp2515_handle_t* mcp, const mcp2515_config_t* cfg);
 esp_err_t mcp2515_reset(mcp2515_handle_t* mcp);
 esp_err_t mcp2515_read_reg(mcp2515_handle_t* mcp, uint8_t reg, uint8_t* val);
@@ -38,5 +44,8 @@ esp_err_t mcp2515_wake_up(mcp2515_handle_t* mcp);
 esp_err_t mcp2515_set_opmode(mcp2515_handle_t* mcp, mcp2515_opmode_t mode);
 esp_err_t mcp2515_get_opmode(mcp2515_handle_t* mcp, mcp2515_opmode_t* mode);
 esp_err_t mcp2515_transmit(mcp2515_handle_t* mcp, uint16_t id, uint8_t dlc, const uint8_t* data);
+esp_err_t mcp2515_receive(mcp2515_handle_t* mcp, can_frame_t* frame);
+esp_err_t mcp2515_set_filters(mcp2515_handle_t* mcp);
+esp_err_t mcp2515_init_config(mcp2515_handle_t* mcp);
 
 #endif

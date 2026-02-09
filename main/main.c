@@ -22,6 +22,8 @@
 
 #define I2C_PORT I2C_NUM_0
 
+#define SPI_BAUD_RATE 4 * 1000 * 1000
+
 #define NETWORK_TEMP_ID     0x100
 #define NETWORK_PRESSURE_ID 0x101
 
@@ -51,14 +53,20 @@ void app_main(void) {
     mcp2515_handle_t mcp2515;
     mcp2515_config_t mcp_cfg = {
         .spi_host = SPI2_HOST,
-        .clock_hz = 1 * 1000 * 1000,
+        .clock_hz = SPI_BAUD_RATE,
         .gpio_cs = MCP_CS,
         .gpio_int = MCP_INT};
 
     mcp2515_init(&mcp2515, &mcp_cfg);
-
+    mcp2515_init_config(&mcp2515);
+    mcp2515_set_filters(&mcp2515);
     mcp2515_set_opmode(&mcp2515, MCP_OPMODE_LOOPBACK);
 
-    mcp2515_transmit(&mcp2515, NETWORK_TEMP_ID, 25, 5);
+    uint8_t data = 52;
+    mcp2515_transmit(&mcp2515, NETWORK_TEMP_ID, 5, &data);
 
+    can_frame_t received_data;
+    mcp2515_receive(&mcp2515, &received_data);
+    printf("%d\n", *received_data.data);
 }
+
