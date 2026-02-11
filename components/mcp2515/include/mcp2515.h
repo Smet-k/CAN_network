@@ -2,7 +2,7 @@
 #define MCP2515_H
 /**
  * @defgroup mcp2515 MCP2515 Driver
- * @brief Driver for MCP2515 Can bus
+ * @brief Driver for MCP2515 CAN bus
  * @{
  */
 #include "driver/gpio.h"
@@ -12,6 +12,7 @@
 #define MCP_ROLLOVER_DISABLE 0x00
 #define MCP_FILTER_OFF 0x03
 #define MCP_FILTER_ON 0x00
+
 /**
  * @brief MCP2515 configuration.
  */
