@@ -23,7 +23,6 @@
 #define MCP_EFLG 0x2D
 #define MCP_TEC 0x1C
 
-
 // TX buffers
 #define MCP_TXB0_BASE 0x30
 #define MCP_TXB1_BASE 0x40
@@ -34,13 +33,21 @@
 // RX buffers
 #define MCP_RXB0_BASE 0x60
 #define MCP_RXB1_BASE 0x70
+
 #define MCP_RBXnCTRL(base) ((base) + 0x00)
+#define MCP_RBXnCTRL_BUKT(bit) ((bit) << 2)
+#define MCP_RBXnCTRL_RXM(bit) ((bit) << 5)
 #define MCP_RXBnSIDH(base) ((base) + 0x01)
 #define MCP_RXBnSIDL(base) ((base) + 0x02)
 #define MCP_RXBnDLC(base) ((base) + 0x05)
-#define MCP_RXBnDATA(base) ((base) + 0x05)
+#define MCP_RXBnDATA(base) ((base) + 0x06)
 
-// REVIEW LATER
+#define MCP_RBXnCTRL_BUKT_MASK  (1 << 2)
+#define MCP_RBXnCTRL_RXM_MASK   (3 << 5)
+#define MCP_EXIDE_MASK (1 << 3)
+
+#define MCP_EXIDE(bit) ((bit) << 3)
+
 #define MCP_TXB_SIDH(base) ((base) + 0x01)
 #define MCP_TXB_SIDL(base) ((base) + 0x02)
 #define MCP_TXB_EID8(base) ((base) + 0x03)
@@ -59,9 +66,21 @@
 #define MCP_CMD_RX_STATUS 0xB0
 #define MCP_CMD_BIT_MODIFY 0x05
 
+static const mcp2515_timing_cfg_t timing_table[] = {
+    {MCP2515_CRYSTAL_8MHZ, MCP2515_BITRATE_500KBPS, 0x00, 0x90, 0x02},
+    {MCP2515_CRYSTAL_8MHZ, MCP2515_BITRATE_250KBPS, 0x00, 0xA1, 0x06},
+    {MCP2515_CRYSTAL_8MHZ, MCP2515_BITRATE_125KBPS, 0x01, 0xA1, 0x06},
+
+    {MCP2515_CRYSTAL_16MHZ, MCP2515_BITRATE_500KBPS, 0x00, 0xD1, 0x81},
+    {MCP2515_CRYSTAL_16MHZ, MCP2515_BITRATE_250KBPS, 0x01, 0xD1, 0x81},
+    {MCP2515_CRYSTAL_16MHZ, MCP2515_BITRATE_125KBPS, 0x03, 0xD1, 0x81},
+};
+
 static esp_err_t mcp2515_bit_modify(mcp2515_handle_t* mcp, uint8_t reg,
                                     uint8_t mask, uint8_t data);
 static bool mcp2515_is_awake(mcp2515_handle_t* mcp);
+static const mcp2515_timing_cfg_t* mcp2515_find_timing(mcp2515_crystal_t crystal, mcp2515_bitrate_t bitrate);
+static esp_err_t mcp2515_ctrl_reg_cfg(mcp2515_handle_t* mcp, const mcp2515_config_t* cfg);
 
 esp_err_t mcp2515_init(mcp2515_handle_t* mcp, const mcp2515_config_t* cfg) {
     if (!mcp || !cfg || cfg->clock_hz <= 0)
@@ -99,7 +118,34 @@ esp_err_t mcp2515_init(mcp2515_handle_t* mcp, const mcp2515_config_t* cfg) {
     if (err != ESP_OK)
         return err;
 
-    return mcp2515_reset(mcp);
+    err = mcp2515_reset(mcp);
+    if(err != ESP_OK)
+        return err;
+
+    return mcp2515_ctrl_reg_cfg(mcp, cfg);
+}
+
+static esp_err_t mcp2515_ctrl_reg_cfg(mcp2515_handle_t* mcp, const mcp2515_config_t* cfg){
+    if(!mcp || !cfg) return ESP_ERR_INVALID_ARG;
+    esp_err_t err;
+
+    err = mcp2515_bit_modify(mcp, MCP_RBXnCTRL(MCP_RXB0_BASE),
+        MCP_RBXnCTRL_BUKT_MASK, MCP_RBXnCTRL_BUKT(cfg->flags.rollover));
+    if(err != ESP_OK) return err;
+    err = mcp2515_bit_modify(mcp, MCP_RBXnCTRL(MCP_RXB0_BASE),
+        MCP_RBXnCTRL_RXM_MASK, MCP_RBXnCTRL_RXM(cfg->flags.rx_mode));
+    if(err != ESP_OK) return err;
+
+    err = mcp2515_bit_modify(mcp, MCP_RXBnSIDL(MCP_RXB0_BASE),
+        MCP_EXIDE_MASK, MCP_EXIDE(cfg->flags.RX_EXIDE));
+    if(err != ESP_OK) return err;
+
+
+    err = mcp2515_bit_modify(mcp, MCP_TXB_SIDL(MCP_TXB0_BASE),
+        MCP_EXIDE_MASK, MCP_EXIDE(cfg->flags.TX_EXIDE));
+    if(err != ESP_OK) return err;
+
+    return ESP_OK;
 }
 
 esp_err_t mcp2515_reset(mcp2515_handle_t* mcp) {
@@ -282,49 +328,56 @@ esp_err_t mcp2515_set_filters(mcp2515_handle_t* mcp) {
     return ESP_OK;
 }
 
-esp_err_t mcp2515_init_config(mcp2515_handle_t* mcp) {
+esp_err_t mcp2515_configure_timing(mcp2515_handle_t* mcp, mcp2515_crystal_t crystal, mcp2515_bitrate_t bitrate){
     if (!mcp) return ESP_ERR_INVALID_ARG;
-    // to be improved
-    mcp2515_write_reg(mcp, MCP_CNF1, 0x00);
-
-    mcp2515_write_reg(mcp, MCP_CNF2, 0x90);
-
-    mcp2515_write_reg(mcp, MCP_CNF3, 0x02);
-
+    const mcp2515_timing_cfg_t* tcfg = mcp2515_find_timing(crystal, bitrate); 
+    mcp2515_write_reg(mcp, MCP_CNF1, tcfg->cnf1);
+    mcp2515_write_reg(mcp, MCP_CNF2, tcfg->cnf2);
+    mcp2515_write_reg(mcp, MCP_CNF3, tcfg->cnf3);
 
     uint8_t cnf1, cnf2, cnf3;
     mcp2515_read_reg(mcp, MCP_CNF1, &cnf1);
-    if (cnf1 != 0x00) return ESP_FAIL;
+    if (cnf1 != tcfg->cnf1) return ESP_FAIL;
     mcp2515_read_reg(mcp, MCP_CNF2, &cnf2);
-    if (cnf2 != 0x90) return ESP_FAIL;
+    if (cnf2 != tcfg->cnf2) return ESP_FAIL;
     mcp2515_read_reg(mcp, MCP_CNF3, &cnf3);
-    if (cnf3 != 0x02) return ESP_FAIL;
+    if (cnf3 != tcfg->cnf3) return ESP_FAIL;
 
-    // To be improved
     return ESP_OK;
 }
 
-esp_err_t mcp2515_receive(mcp2515_handle_t* mcp, can_frame_t* frame){
-    if(!mcp || !frame) return ESP_ERR_INVALID_ARG;
+esp_err_t mcp2515_receive(mcp2515_handle_t* mcp, mcp2515_frame_t* frame) {
+    if (!mcp || !frame) return ESP_ERR_INVALID_ARG;
 
     uint8_t intf;
     mcp2515_read_reg(mcp, MCP_CANINTF, &intf);
 
-    if (!(intf & MCP_RX0IF)) 
+    if (!(intf & MCP_RX0IF))
         return ESP_FAIL;
-
+ 
     uint8_t sidh, sidl, dlc;
     mcp2515_read_reg(mcp, MCP_RXBnSIDH(MCP_RXB0_BASE), &sidh);
     mcp2515_read_reg(mcp, MCP_RXBnSIDL(MCP_RXB0_BASE), &sidl);
     mcp2515_read_reg(mcp, MCP_RXBnDLC(MCP_RXB0_BASE), &dlc);
-    
+
     frame->id = (sidh << 3) + (sidl >> 5);
     frame->dlc = dlc;
+
     for (int i = 0; i < (dlc & 0x0F); i++) {
         mcp2515_read_reg(mcp, MCP_RXBnDATA(MCP_RXB0_BASE) + i, &frame->data[i]);
     }
-
     mcp2515_bit_modify(mcp, MCP_CANINTF, MCP_RX0IF, 0);
-    
+
     return ESP_OK;
+}
+
+static const mcp2515_timing_cfg_t* mcp2515_find_timing(mcp2515_crystal_t crystal, mcp2515_bitrate_t bitrate) {
+    size_t size = (sizeof(timing_table) / sizeof(timing_table[0]));
+    for (size_t i = 0; i < size; i++) {
+        if (timing_table[i].crystal == crystal &&
+            timing_table[i].bitrate == bitrate) {
+            return &timing_table[i]; // note down that pointer is used to not copy the values but instead point to them 
+        }
+    }
+    return NULL;
 }

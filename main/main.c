@@ -24,7 +24,7 @@
 
 #define SPI_BAUD_RATE 4 * 1000 * 1000
 
-#define NETWORK_TEMP_ID     0x100
+#define NETWORK_TEMP_ID 0x100
 #define NETWORK_PRESSURE_ID 0x101
 
 void app_main(void) {
@@ -34,7 +34,8 @@ void app_main(void) {
         .scl_io_num = BMP_SCL_GPIO,
         .glitch_ignore_cnt = 7,
         .flags.enable_internal_pullup = true,
-        .clk_source = I2C_CLK_SRC_DEFAULT};
+        .clk_source = I2C_CLK_SRC_DEFAULT
+    };
 
     i2c_master_bus_handle_t bus_handle;
     ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_buscfg, &bus_handle));
@@ -46,7 +47,8 @@ void app_main(void) {
         .sclk_io_num = MCP_SCK,
         .mosi_io_num = MCP_MOSI,
         .miso_io_num = MCP_MISO,
-        .max_transfer_sz = 128 * 128 * 2};
+        .max_transfer_sz = 128 * 128 * 2
+    };
 
     ESP_ERROR_CHECK(spi_bus_initialize(SPI2_HOST, &spi_buscfg, SPI_DMA_CH_AUTO));
 
@@ -55,18 +57,18 @@ void app_main(void) {
         .spi_host = SPI2_HOST,
         .clock_hz = SPI_BAUD_RATE,
         .gpio_cs = MCP_CS,
-        .gpio_int = MCP_INT};
+        .gpio_int = MCP_INT
+    };
 
     mcp2515_init(&mcp2515, &mcp_cfg);
-    mcp2515_init_config(&mcp2515);
+    mcp2515_configure_timing(&mcp2515, MCP2515_CRYSTAL_8MHZ, MCP2515_BITRATE_500KBPS);
     mcp2515_set_filters(&mcp2515);
     mcp2515_set_opmode(&mcp2515, MCP_OPMODE_LOOPBACK);
 
-    uint8_t data = 52;
-    mcp2515_transmit(&mcp2515, NETWORK_TEMP_ID, 5, &data);
+    uint8_t data = 254;
+    mcp2515_transmit(&mcp2515, NETWORK_TEMP_ID, 1, &data);
 
-    can_frame_t received_data;
+    mcp2515_frame_t received_data;
     mcp2515_receive(&mcp2515, &received_data);
     printf("%d\n", *received_data.data);
 }
-
