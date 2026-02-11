@@ -76,10 +76,83 @@ static const mcp2515_timing_cfg_t timing_table[] = {
     {MCP2515_CRYSTAL_16MHZ, MCP2515_BITRATE_125KBPS, 0x03, 0xD1, 0x81},
 };
 
+/**
+ * @brief Read value from MCP2515 register.
+ * 
+ * @param[in] mcp pointer to MCP2515 handle.
+ * @param[in] reg register to read from.
+ * @param[out] val pointer to variable to write into.
+ * 
+ * @return
+ *      - ESP_OK: register read successfully.
+ *      - ESP_ERR_INVALID_ARG: mcp or mcp->spi is NULL.
+ */
+static esp_err_t mcp2515_read_reg(mcp2515_handle_t* mcp, uint8_t reg, uint8_t* val);
+
+/**
+ * @brief Write value into MCP2515 register.
+ * 
+ * @param[in] mcp pointer to MCP2515 handle.
+ * @param[in] reg register to write into.
+ * @param[in] val value to write.
+ * 
+ * @return
+ *      - ESP_OK: value written successfully.
+ *      - ESP_ERR_INVALID_ARG: mcp or mcp->spi is NULL.
+ */
+static esp_err_t mcp2515_write_reg(mcp2515_handle_t* mcp, uint8_t reg, uint8_t val);
+
+/**
+ * @brief Modify value of the register.
+ * 
+ * @param[in] mcp pointer to MCP2515 handle.
+ * @param[in] reg register to modify.
+ * @param[in] mask mask for data to use.
+ * @param[in] data data to be written with mask.
+ * 
+ * @return
+ *      - ESP_OK: register modifier successfully.
+ *      - ESP_ERR_INVALID_ARG: mcp or mcp->spi is NULL.
+ */
 static esp_err_t mcp2515_bit_modify(mcp2515_handle_t* mcp, uint8_t reg,
                                     uint8_t mask, uint8_t data);
+
+/**
+ * @brief Check if MCP2515 is awake.
+ * 
+ * @param[in] mcp pointer to MCP2515 handle.
+ * 
+ * @return
+ *      - TRUE device is sleeping.
+ *      - FALSE device is awake.
+ */
 static bool mcp2515_is_awake(mcp2515_handle_t* mcp);
+
+/**
+ * @brief Find a viable timings configuration.
+ * 
+ * Timing configuration is found by matching frequency and bitrate
+ * with timing table.
+ * 
+ * @param[in] crystal MCP2515 crystal frequency.
+ * @param[out] bitrate Chosen message bitrate.
+ * 
+ * @return viable timings from table or NULL if no timings is found.
+ */
 static const mcp2515_timing_cfg_t* mcp2515_find_timing(mcp2515_crystal_t crystal, mcp2515_bitrate_t bitrate);
+
+/**
+ * @brief Set multiple register configurations.
+ * 
+ * Sets multiple settings in registers, following mcp2515_config_t flags.
+ * 
+ * @param[in] mcp pointer to MCP2515 handle.
+ * @param[in] cfg MCP2515 configuration.
+ * 
+ * @return
+ *      - ESP_OK: configuration was successful.
+ *      - ESP_ERR_INVALID_ARG: mcp or cfg is NULL.
+ */
 static esp_err_t mcp2515_ctrl_reg_cfg(mcp2515_handle_t* mcp, const mcp2515_config_t* cfg);
 
 esp_err_t mcp2515_init(mcp2515_handle_t* mcp, const mcp2515_config_t* cfg) {
@@ -167,7 +240,7 @@ esp_err_t mcp2515_reset(mcp2515_handle_t* mcp) {
     return ESP_OK;
 }
 
-esp_err_t mcp2515_read_reg(mcp2515_handle_t* mcp, uint8_t reg, uint8_t* val) {
+static esp_err_t mcp2515_read_reg(mcp2515_handle_t* mcp, uint8_t reg, uint8_t* val) {
     if (!mcp || !mcp->spi)
         return ESP_ERR_INVALID_ARG;
 
@@ -184,7 +257,7 @@ esp_err_t mcp2515_read_reg(mcp2515_handle_t* mcp, uint8_t reg, uint8_t* val) {
     return ESP_OK;
 }
 
-esp_err_t mcp2515_write_reg(mcp2515_handle_t* mcp, uint8_t reg, uint8_t val) {
+static esp_err_t mcp2515_write_reg(mcp2515_handle_t* mcp, uint8_t reg, uint8_t val) {
     if (!mcp || !mcp->spi)
         return ESP_ERR_INVALID_ARG;
 
@@ -194,8 +267,11 @@ esp_err_t mcp2515_write_reg(mcp2515_handle_t* mcp, uint8_t reg, uint8_t val) {
     return spi_device_transmit(mcp->spi, &t);
 }
 
-esp_err_t mcp2515_bit_modify(mcp2515_handle_t* mcp, uint8_t reg, uint8_t mask,
+static esp_err_t mcp2515_bit_modify(mcp2515_handle_t* mcp, uint8_t reg, uint8_t mask,
                              uint8_t data) {
+    if(!mcp || !mcp->spi)
+        return ESP_ERR_INVALID_ARG;
+    
     uint8_t tx[4] = {MCP_CMD_BIT_MODIFY, reg, mask, data};
     spi_transaction_t t = {
         .length = 8 * sizeof(tx),
@@ -278,7 +354,7 @@ esp_err_t mcp2515_get_opmode(mcp2515_handle_t* mcp, mcp2515_opmode_t* mode) {
 }
 
 esp_err_t mcp2515_transmit(mcp2515_handle_t* mcp, uint16_t id, uint8_t dlc, const uint8_t* data) {
-    if (dlc > 8) return ESP_ERR_INVALID_ARG;
+    if (!mcp || dlc > 8 ) return ESP_ERR_INVALID_ARG;
 
     uint8_t sidh = (id >> 3) & MCP_SIDH_ID_MASK;
     uint8_t sidl = (id & MCP_SIDL_ID_MASK) << 5;
