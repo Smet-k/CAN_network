@@ -23,7 +23,7 @@
 #define P_OSRS_X16 0x05
 #define FILTER_X4 0x02
 
-#define CONFIG_T_SB_POS   0x05
+#define CONFIG_T_SB_POS 0x05
 #define CONFIG_FILTER_POS 0x02
 
 #define CTRL_OSRS_T_POS 0x05
@@ -32,7 +32,7 @@
 #define RESET_VALUE 0xB6
 
 #define STATUS_MEASURING_POS 0x03
-#define STATUS_MEASURING    (1 << STATUS_MEASURING_POS)
+#define STATUS_MEASURING (1 << STATUS_MEASURING_POS)
 
 /**
  * @brief Read calibration coefficients from BMP280.
@@ -240,13 +240,10 @@ static esp_err_t bmp280_load_calibration(bmp280_t* bmp280) {
 static int32_t bmp280_compensate_t(bmp280_t* dev, const int raw_temp) {
     int32_t var1, var2, T;
     var1 = ((((raw_temp >> 3) - ((int32_t)dev->calibration.dig_T1 << 1))) *
-            ((int32_t)dev->calibration.dig_T2)) >>
-           11;
+            ((int32_t)dev->calibration.dig_T2)) >> 11;
     var2 = (((((raw_temp >> 4) - ((int32_t)dev->calibration.dig_T1)) *
-              ((raw_temp >> 4) - ((int32_t)dev->calibration.dig_T1))) >>
-             12) *
-            ((int32_t)dev->calibration.dig_T3)) >>
-           14;
+              ((raw_temp >> 4) - ((int32_t)dev->calibration.dig_T1))) >> 12) *
+            ((int32_t)dev->calibration.dig_T3)) >> 14;
 
     dev->t_fine = var1 + var2;
     T = (dev->t_fine * 5 + 128) >> 8;
