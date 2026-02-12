@@ -57,14 +57,14 @@ void app_main(void) {
         .spi_host = SPI2_HOST,
         .clock_hz = SPI_BAUD_RATE,
         .gpio_cs = MCP_CS,
-        .gpio_int = MCP_INT
+        .gpio_int = MCP_INT,
+        .flags.rx_mode = MCP2515_RXM_OFF
     };
 
     mcp2515_init(&mcp2515, &mcp_cfg);
     mcp2515_configure_timing(&mcp2515, MCP2515_CRYSTAL_8MHZ, MCP2515_BITRATE_500KBPS);
-    mcp2515_set_filters(&mcp2515);
-    mcp2515_set_opmode(&mcp2515, MCP_OPMODE_LOOPBACK);
-
+    mcp2515_set_opmode(&mcp2515, MCP2515_OPMODE_LOOPBACK);
+    
     uint8_t data = 254;
     mcp2515_transmit(&mcp2515, NETWORK_TEMP_ID, 1, &data);
 

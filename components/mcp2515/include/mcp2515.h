@@ -14,6 +14,15 @@
 #define MCP_FILTER_ON 0x00
 
 /**
+ * @brief MCP2515 RXM options.
+ * options to turn on/off filters and masks.
+ */
+typedef enum {
+    MCP2515_RXM_ON = 0x00, /** masks/filters ON */
+    MCP2515_RXM_OFF = 0x03 /** masks/filters OFF */
+} mcp2515_rxm_t;
+
+/**
  * @brief MCP2515 configuration.
  */
 typedef struct {
@@ -23,7 +32,7 @@ typedef struct {
     gpio_num_t gpio_int;
     struct {
         uint8_t rollover;
-        uint8_t rx_mode;
+        mcp2515_rxm_t rx_mode;
         uint8_t RX0_EXIDE;
         uint8_t RX1_EXIDE;
         uint8_t TX_EXIDE;
@@ -71,29 +80,29 @@ typedef struct{
  * @brief Possible MCP2515 operation modes.
  */
 typedef enum {
-    MCP_OPMODE_NORMAL = 0x00,
-    MCP_OPMODE_SLEEP = 0x20,
-    MCP_OPMODE_LOOPBACK = 0x40,
-    MCP_OPMODE_LISTEN_ONLY = 0x60,
-    MCP_OPMODE_CONFIGURATION = 0x80
+    MCP2515_OPMODE_NORMAL = 0x00,
+    MCP2515_OPMODE_SLEEP = 0x20,
+    MCP2515_OPMODE_LOOPBACK = 0x40,
+    MCP2515_OPMODE_LISTEN_ONLY = 0x60,
+    MCP2515_OPMODE_CONFIGURATION = 0x80
 } mcp2515_opmode_t;
 
 /**
  * @brief Priorities of MCP2515 messages
  */
 typedef enum {
-    MCP_PRIORITY_LOWEST =0x00,
-    MCP_PRIORITY_LOW,
-    MCP_PRIORITY_HIGH,
-    MCP_PRIORITY_HIGHEST
+    MCP2515_PRIORITY_LOWEST =0x00,
+    MCP2515_PRIORITY_LOW,
+    MCP2515_PRIORITY_HIGH,
+    MCP2515_PRIORITY_HIGHEST
 } mcp2515_priority_t;
 
 /**
  * @brief MCP2515 masks.
  */
 typedef enum {
-    MCP_MASK0 = 0,
-    MCP_MASK1 = 1
+    MCP2515_MASK0 = 0,
+    MCP2515_MASK1 = 1
 } mcp_mask_t;
 
 
@@ -101,12 +110,12 @@ typedef enum {
  * @brief MCP2515 filters.
  */
 typedef enum {
-    MCP_FILTER0 = 0x00,
-    MCP_FILTER1,
-    MCP_FILTER2,
-    MCP_FILTER3,
-    MCP_FILTER4,
-    MCP_FILTER5
+    MCP2515_FILTER0 = 0x00,
+    MCP2515_FILTER1,
+    MCP2515_FILTER2,
+    MCP2515_FILTER3,
+    MCP2515_FILTER4,
+    MCP2515_FILTER5
 } mcp_filter_t;
 
 /**
@@ -115,9 +124,9 @@ typedef enum {
  * used to pick which buffer will be used by certain functions.
  */
 typedef enum {
-    MCP_TXB0 = 0x00,
-    MCP_TXB1,
-    MCP_TXB2
+    MCP2515_TXB0 = 0x00,
+    MCP2515_TXB1,
+    MCP2515_TXB2
 } mcp_txb_t;
 
 /**
@@ -126,8 +135,8 @@ typedef enum {
  * used to pick which buffer will be used by certain functions.
  */
 typedef enum {
-    MCP_RXB0 = 0x00,
-    MCP_RXB1
+    MCP2515_RXB0 = 0x00,
+    MCP2515_RXB1
 } mcp_rxb_t;
 
 // maybe make it universal for both transmit and receive
@@ -233,15 +242,6 @@ esp_err_t mcp2515_transmit(mcp2515_handle_t* mcp, uint16_t id, uint8_t dlc, cons
 esp_err_t mcp2515_receive(mcp2515_handle_t* mcp, mcp2515_frame_t* frame);
 
 /**
- * @brief set CAN bus filters.
- * 
- * @param[in] mcp pointer to MCP2515 handle.
- * 
- * @note in development.
- */
-esp_err_t mcp2515_set_filters(mcp2515_handle_t* mcp);
-
-/**
  * @brief Configure MCP2515 CAN bus timings.
  * 
  * @param[in] mcp pointer to MCP2515 handle.
@@ -255,4 +255,32 @@ esp_err_t mcp2515_set_filters(mcp2515_handle_t* mcp);
  */
 esp_err_t mcp2515_configure_timing(mcp2515_handle_t* mcp, mcp2515_crystal_t crystal, mcp2515_bitrate_t bitrate);
 /** @} */
+
+/**
+ * @brief set CAN bus filters.
+ * 
+ * @param[in] mcp pointer to MCP2515 handle.
+ * @param[in] filter_reg filter register to be set.
+ * @param[in] filter filter value.
+ * 
+ * @return
+ *      - ESP_OK: filters set successfully.
+ *      - ESP_ERR_INVALID_STATE: device is not in configuration mode.
+ */
+esp_err_t mcp2515_set_filter(mcp2515_handle_t* mcp, mcp_filter_t filter_reg, uint16_t filter);
+
+/**
+ * @brief Sets a mask for provided register.
+ * 
+ * @param[in] mcp pointer to MCP2515 handle.
+ * @param[in] mask_reg mask register to be set.
+ * @param[in] mask mask value.
+ * 
+ * @return
+ *      - ESP_OK: mask set successfully.
+ *      - ESP_ERR_INVALID_ARG: mcp is NULL.
+ *      - ESP_ERR_INVALID_STATE: device is not in configuration mode.
+ */
+esp_err_t mcp2515_set_mask(mcp2515_handle_t* mcp, mcp_mask_t mask_reg, uint16_t mask);
+
 #endif
