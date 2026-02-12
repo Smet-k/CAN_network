@@ -24,7 +24,8 @@ typedef struct {
     struct {
         uint8_t rollover;
         uint8_t rx_mode;
-        uint8_t RX_EXIDE;
+        uint8_t RX0_EXIDE;
+        uint8_t RX1_EXIDE;
         uint8_t TX_EXIDE;
     } flags;
 } mcp2515_config_t;
@@ -86,6 +87,48 @@ typedef enum {
     MCP_PRIORITY_HIGH,
     MCP_PRIORITY_HIGHEST
 } mcp2515_priority_t;
+
+/**
+ * @brief MCP2515 masks.
+ */
+typedef enum {
+    MCP_MASK0 = 0,
+    MCP_MASK1 = 1
+} mcp_mask_t;
+
+
+/**
+ * @brief MCP2515 filters.
+ */
+typedef enum {
+    MCP_FILTER0 = 0x00,
+    MCP_FILTER1,
+    MCP_FILTER2,
+    MCP_FILTER3,
+    MCP_FILTER4,
+    MCP_FILTER5
+} mcp_filter_t;
+
+/**
+ * @brief MCP2515 transmit buffers.
+ * 
+ * used to pick which buffer will be used by certain functions.
+ */
+typedef enum {
+    MCP_TXB0 = 0x00,
+    MCP_TXB1,
+    MCP_TXB2
+} mcp_txb_t;
+
+/**
+ * @brief MCP2515 receive buffers.
+ * 
+ * used to pick which buffer will be used by certain functions.
+ */
+typedef enum {
+    MCP_RXB0 = 0x00,
+    MCP_RXB1
+} mcp_rxb_t;
 
 // maybe make it universal for both transmit and receive
 /**
