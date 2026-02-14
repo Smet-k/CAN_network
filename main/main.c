@@ -27,6 +27,9 @@
 #define NETWORK_TEMP_ID 0x100
 #define NETWORK_PRESSURE_ID 0x101
 
+#define ID_MASK   0x700
+#define ID_FILTER 0x100
+
 void app_main(void) {
     i2c_master_bus_config_t i2c_buscfg = {
         .i2c_port = I2C_PORT,
@@ -58,17 +61,28 @@ void app_main(void) {
         .clock_hz = SPI_BAUD_RATE,
         .gpio_cs = MCP_CS,
         .gpio_int = MCP_INT,
-        .flags.rx_mode = MCP2515_RXM_OFF
+        .flags.rx_mode = MCP2515_RXM_OFF,
+        .flags.RX0_EXIDE = MCP2515_EXIDE_ON
     };
 
     mcp2515_init(&mcp2515, &mcp_cfg);
     mcp2515_configure_timing(&mcp2515, MCP2515_CRYSTAL_8MHZ, MCP2515_BITRATE_500KBPS);
+    mcp2515_set_mask(&mcp2515, MCP2515_MASK0, ID_MASK);
+    mcp2515_set_filter(&mcp2515, MCP2515_FILTER0, ID_FILTER);
     mcp2515_set_opmode(&mcp2515, MCP2515_OPMODE_LOOPBACK);
     
-    uint8_t data = 254;
-    mcp2515_transmit(&mcp2515, NETWORK_TEMP_ID, 1, &data);
+    uint8_t message = 253;
+    // make a building helper function?
+    mcp2515_frame_t transmit_data = {
+        .data = { message },
+        .dlc = 1,
+        .id = 0xFFF,
+        .extended = true
+    };
+    
+    mcp2515_transmit(&mcp2515, &transmit_data);
 
     mcp2515_frame_t received_data;
     mcp2515_receive(&mcp2515, &received_data);
-    printf("%d\n", *received_data.data);
+    printf("0x%lX: %d\n", received_data.id ,*received_data.data);
 }

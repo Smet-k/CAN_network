@@ -8,10 +8,10 @@
 #include "driver/gpio.h"
 #include "driver/spi_master.h"
 
-#define MCP_ROLLOVER_ENABLE 0x01
-#define MCP_ROLLOVER_DISABLE 0x00
-#define MCP_FILTER_OFF 0x03
-#define MCP_FILTER_ON 0x00
+#define MCP2515_ROLLOVER_ENABLE 0x01
+#define MCP2515_ROLLOVER_DISABLE 0x00
+#define MCP2515_EXIDE_OFF 0x00
+#define MCP2515_EXIDE_ON 0x01
 
 /**
  * @brief MCP2515 RXM options.
@@ -35,7 +35,6 @@ typedef struct {
         mcp2515_rxm_t rx_mode;
         uint8_t RX0_EXIDE;
         uint8_t RX1_EXIDE;
-        uint8_t TX_EXIDE;
     } flags;
 } mcp2515_config_t;
 
@@ -75,6 +74,14 @@ typedef struct{
     uint8_t cnf2;
     uint8_t cnf3;
 } mcp2515_timing_cfg_t;
+
+/**
+ * @brief CAN bus message format
+ */
+typedef enum {
+    MCP_FRAME_STD = 0,
+    MCP_FRAME_EXT = 1
+} mcp2515_frame_format_t;
 
 /**
  * @brief Possible MCP2515 operation modes.
@@ -144,9 +151,10 @@ typedef enum {
  * @brief MCP2515 received message frame.
  */
 typedef struct {
-    uint16_t id;
+    uint32_t id;
     uint8_t dlc;
     uint8_t data[8];
+    bool extended;
 } mcp2515_frame_t;
 
 /**
@@ -215,16 +223,14 @@ esp_err_t mcp2515_get_opmode(mcp2515_handle_t* mcp, mcp2515_opmode_t* mode);
  * @brief Transmit a CAN bus message.
  * 
  * @param[in] mcp pointer to MCP2515 handle.
- * @param[in] id message identifier.
- * @param[in] dlc message length.
- * @param[in] data message.
+ * @param[in] frame message frame to be transmit.
  * 
  * @return
  *      - ESP_OK: message transmission was successful.
  *      - ESP_ERR_INVALID_ARG: mcp or dlc is NULL.
  *      - ESP_FAIL: message transmission failed.
  */
-esp_err_t mcp2515_transmit(mcp2515_handle_t* mcp, uint16_t id, uint8_t dlc, const uint8_t* data);
+esp_err_t mcp2515_transmit(mcp2515_handle_t* mcp, const mcp2515_frame_t* frame);
 
 /**
  * @brief Receive a CAN bus message.
@@ -235,7 +241,7 @@ esp_err_t mcp2515_transmit(mcp2515_handle_t* mcp, uint16_t id, uint8_t dlc, cons
  * @return
  *      - ESP_OK: message received successfully.
  *      - ESP_ERR_INVALID_ARG: mcp or frame is NULL.
- *      - ESP_FAIL: no messages to receive or receival failed.
+ *      - ESP_ERR_NOT_FOUND: no messages to receive or receival failed.
  * 
  * @note MCP2515 CAN bus timings must be set up (mcp2515_configure_timing()) before message receival.
  */
