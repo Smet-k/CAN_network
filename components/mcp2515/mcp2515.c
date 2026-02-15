@@ -393,6 +393,9 @@ esp_err_t mcp2515_transmit(mcp2515_handle_t* mcp, const mcp2515_frame_t* frame) 
     if(err != ESP_OK) return err;
     uint8_t ctrl;
 
+    err = mcp2515_read_reg(mcp, base, &ctrl);
+    if(err != ESP_OK) return err;
+    
     if (ctrl & MCP_TXBnTXERR)
         return ESP_FAIL;
 
