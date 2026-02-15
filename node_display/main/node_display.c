@@ -1,7 +1,6 @@
 #include <math.h>
 #include <stdio.h>
 
-#include "bmp280.h"
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
 #include "driver/i2c_types.h"
@@ -10,9 +9,6 @@
 #include "freertos/task.h"
 #include "mcp2515.h"
 #include "sdkconfig.h"
-
-#define BMP_SDA_GPIO GPIO_NUM_21
-#define BMP_SCL_GPIO GPIO_NUM_22
 
 #define MCP_MISO GPIO_NUM_27
 #define MCP_MOSI GPIO_NUM_14
@@ -31,21 +27,6 @@
 #define ID_FILTER 0x100
 
 void app_main(void) {
-    i2c_master_bus_config_t i2c_buscfg = {
-        .i2c_port = I2C_PORT,
-        .sda_io_num = BMP_SDA_GPIO,
-        .scl_io_num = BMP_SCL_GPIO,
-        .glitch_ignore_cnt = 7,
-        .flags.enable_internal_pullup = true,
-        .clk_source = I2C_CLK_SRC_DEFAULT
-    };
-
-    i2c_master_bus_handle_t bus_handle;
-    ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_buscfg, &bus_handle));
-
-    bmp280_t bmp280;
-    ESP_ERROR_CHECK(bmp280_initialize(&bmp280, BMP_FORCE, bus_handle));
-
     spi_bus_config_t spi_buscfg = {
         .sclk_io_num = MCP_SCK,
         .mosi_io_num = MCP_MOSI,
@@ -64,11 +45,11 @@ void app_main(void) {
         .flags.rx_mode = MCP2515_RXM_OFF,
         .flags.RX0_EXIDE = MCP2515_EXIDE_ON
     };
-
+    
     mcp2515_init(&mcp2515, &mcp_cfg);
     mcp2515_configure_timing(&mcp2515, MCP2515_CRYSTAL_8MHZ, MCP2515_BITRATE_500KBPS);
-    mcp2515_set_mask(&mcp2515, MCP2515_MASK0, ID_MASK);
-    mcp2515_set_filter(&mcp2515, MCP2515_FILTER0, ID_FILTER);
+    mcp2515_set_mask(&mcp2515, MCP2515_MASK0, ID_MASK, true);
+    mcp2515_set_filter(&mcp2515, MCP2515_FILTER0, ID_FILTER, true);
     mcp2515_set_opmode(&mcp2515, MCP2515_OPMODE_LOOPBACK);
     
     uint8_t message = 253;

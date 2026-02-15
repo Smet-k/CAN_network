@@ -268,12 +268,13 @@ esp_err_t mcp2515_configure_timing(mcp2515_handle_t* mcp, mcp2515_crystal_t crys
  * @param[in] mcp pointer to MCP2515 handle.
  * @param[in] filter_reg filter register to be set.
  * @param[in] filter filter value.
+ * @param[in] extended flag for extended id usage.
  * 
  * @return
  *      - ESP_OK: filters set successfully.
- *      - ESP_ERR_INVALID_STATE: device is not in configuration mode.
+ *      - ESP_ERR_INVALID_ARG: mcp is NULL.
  */
-esp_err_t mcp2515_set_filter(mcp2515_handle_t* mcp, mcp_filter_t filter_reg, uint16_t filter);
+esp_err_t mcp2515_set_filter(mcp2515_handle_t* mcp, mcp_filter_t filter_reg, uint32_t filter, bool extended);
 
 /**
  * @brief Sets a mask for provided register.
@@ -281,12 +282,12 @@ esp_err_t mcp2515_set_filter(mcp2515_handle_t* mcp, mcp_filter_t filter_reg, uin
  * @param[in] mcp pointer to MCP2515 handle.
  * @param[in] mask_reg mask register to be set.
  * @param[in] mask mask value.
+ * @param[in] extended flag for extended id usage.
  * 
  * @return
  *      - ESP_OK: mask set successfully.
  *      - ESP_ERR_INVALID_ARG: mcp is NULL.
- *      - ESP_ERR_INVALID_STATE: device is not in configuration mode.
  */
-esp_err_t mcp2515_set_mask(mcp2515_handle_t* mcp, mcp_mask_t mask_reg, uint16_t mask);
+esp_err_t mcp2515_set_mask(mcp2515_handle_t* mcp, mcp_mask_t mask_reg, uint32_t mask, bool extended);
 
 #endif
