@@ -69,31 +69,30 @@ void app_main(void) {
 
     ESP_ERROR_CHECK(mcp2515_init(&mcp2515, &mcp_cfg));
     ESP_ERROR_CHECK(mcp2515_configure_timing(&mcp2515, MCP2515_CRYSTAL_8MHZ, MCP2515_BITRATE_500KBPS));
-    ESP_ERROR_CHECK(mcp2515_set_mask(&mcp2515, MCP2515_MASK0, ID_MASK, 0));
-    ESP_ERROR_CHECK(mcp2515_set_filter(&mcp2515, MCP2515_FILTER0, ID_FILTER, 0));
-    ESP_ERROR_CHECK(mcp2515_set_opmode(&mcp2515, MCP2515_OPMODE_LOOPBACK));
+    ESP_ERROR_CHECK(mcp2515_set_opmode(&mcp2515, MCP2515_OPMODE_LOOPBACK)); // tmp
 
     while (1) {
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        esp_err_t err;
         bmp280_measurements measurements;
-        mcp2515_frame_t transmit_frame, receive_frame;//tmp
+        mcp2515_frame_t transmit_frame;
         ESP_ERROR_CHECK(bmp280_read(&bmp280, &measurements));
         
-        double_bytes_t temp_union;
+        double_bytes_t temp_union, pres_union;
         temp_union.d = measurements.temperature;
+        pres_union.d = measurements.pressure;
 
         ESP_ERROR_CHECK(mcp2515_create_frame(&transmit_frame, temp_union.bytes, 8, NETWORK_TEMP_ID, 0));
-        ESP_ERROR_CHECK(mcp2515_transmit(&mcp2515, &transmit_frame));
-        
-        ESP_ERROR_CHECK(mcp2515_receive(&mcp2515, &receive_frame));
-
-        temp_union.d = 0;
-        for(int i = 0; i < receive_frame.dlc; i++){
-            temp_union.bytes[i] = receive_frame.data[i];
+        err = mcp2515_transmit(&mcp2515, &transmit_frame);
+        if (err ==  ESP_FAIL){
+            printf("Failed to send the message.\n");
+            continue;
         }
-
-        double received_temperature = temp_union.d;
-        printf("Temperature: %f\n", received_temperature);
-
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        ESP_ERROR_CHECK(mcp2515_create_frame(&transmit_frame, pres_union.bytes, 8, NETWORK_PRESSURE_ID, 0));
+        err = mcp2515_transmit(&mcp2515, &transmit_frame);
+        if (err ==  ESP_FAIL){
+            printf("Failed to send the message.\n");
+            continue;
+        }
     }
 }
