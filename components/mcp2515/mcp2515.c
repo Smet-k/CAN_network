@@ -4,24 +4,14 @@
 #define MCP_CANCTRL 0x0F
 #define MCP_OPMOD_MASK 0xE0
 #define MCP_OPMOD_SLEEP 0x20
-#define MCP_FILTER_OFF_MASK 0x60
 
 #define MCP_CNF3 0x28
 #define MCP_CNF2 0x29
 #define MCP_CNF1 0x2A
 
-#define MCP_BRP_CNF_MASK 0x3F
-#define MCP_SJW_CNF_MASK 0xC0
-
 #define MCP_CANINTE 0x2B
-#define MCP_RX0IE 0x01
-#define MCP_RX1IE 0x02
 #define MCP_CANINTF 0x2C
 #define MCP_CANINTE_WAKIE (1 << 6)
-#define MCP_RX0IF 0x01
-#define MCP_RX1IF 0x02
-#define MCP_EFLG 0x2D
-#define MCP_TEC 0x1C
 
 // RX buffers
 #define MCP_RXBnCTRL_BUKT(bit) ((bit) << 2)
@@ -44,6 +34,15 @@
 #define MCP_RXFnEID8(base) ((base) + 0x02)
 #define MCP_RXFnEID0(base) ((base) + 0x03)
 
+#define MCP_RXBnCTRL_BUKT_MASK  (1 << 2)
+#define MCP_RXBnCTRL_RXM_MASK   (3 << 5)
+#define MCP_RXnSIDL(base) ((base) +0x01)
+
+#define MCP_RX0IF 0x01
+#define MCP_RX1IF 0x02
+#define MCP_RX0IE 0x01
+#define MCP_RX1IE 0x02
+
 // TX BUFFERS
 #define MCP_TXBnSIDH(base) ((base) + 0x01)
 #define MCP_TXBnSIDL(base) ((base) + 0x02)
@@ -56,12 +55,9 @@
 #define MCP_TXBnTXERR (1 << 4)
 #define MCP_TXBnMLOA (1 << 5)
 
-#define MCP_RXBnCTRL_BUKT_MASK  (1 << 2)
-#define MCP_RXBnCTRL_RXM_MASK   (3 << 5)
+// UNIVERSAL
 #define MCP_EXIDE_MASK (1 << 3)
 #define MCP_EXIDE(bit) ((bit) << 3)
-
-#define MCP_RXnSIDL(base) ((base) +0x01)
 
 #define MCP_SIDH_ID_MASK 0xFF
 #define MCP_EIDn_ID_MASK 0xFF
@@ -70,11 +66,10 @@
 #define MCP_SIDL_EXT_ID_MASK2 0xE0
 #define MCP_EID8_OFFSET    0x08
 
+// COMMANDS
 #define MCP_CMD_RESET 0xC0
 #define MCP_CMD_READ 0x03
 #define MCP_CMD_WRITE 0x02
-#define MCP_CMD_READ_STATUS 0xA0
-#define MCP_CMD_RX_STATUS 0xB0
 #define MCP_CMD_BIT_MODIFY 0x05
 
 static const mcp2515_timing_cfg_t timing_table[] = {
@@ -107,6 +102,33 @@ static const uint8_t mcp_rxf_sidh_addr[6] = {
     0x00, 0x04, 0x08,
     0x10, 0x14, 0x18
 };
+
+typedef struct {
+    uint8_t sidh;
+    uint8_t sidl;
+    uint8_t eid8;
+    uint8_t eid0;
+} mcp2515_id_t;
+
+/**
+ * @brief packs provided id into transmission compatible format.
+ * 
+ * @param[in] id packed id.
+ * @param[in] extended is id extended.
+ * 
+ * @return packed id struct.
+ */
+static mcp2515_id_t mcp2515_pack_id(uint32_t id, bool extended);
+
+/**
+ * @brief unpacks provided id into integer.
+ * 
+ * @param[in] id id to be unpacked.
+ * @param[in] extended is id extended.
+ * 
+ * @return id integer.
+ */
+static uint32_t mcp2515_unpack_id(mcp2515_id_t id, bool extended);
 
 /**
  * @brief Read value from MCP2515 register.
@@ -159,6 +181,17 @@ static esp_err_t mcp2515_bit_modify(mcp2515_handle_t* mcp, uint8_t reg,
  *      - FALSE device is awake.
  */
 static bool mcp2515_is_awake(mcp2515_handle_t* mcp);
+
+/**
+ * @brief returns index of a free TX buffer.
+ * 
+ * @param[in] mcp pointer to mcp handle.
+ * 
+ * @return
+ *      - positive number if any buffer is free.
+ *      - negative if there is no free buffers (-1).
+ */
+static int8_t mcp2515_get_free_tx_buffer(mcp2515_handle_t* mcp);
 
 /**
  * @brief Find a viable timings configuration.
@@ -244,39 +277,6 @@ esp_err_t mcp2515_init(mcp2515_handle_t* mcp, const mcp2515_config_t* cfg) {
     return mcp2515_configure_interrupts(mcp);
 }
 
-static esp_err_t mcp2515_configure_interrupts(mcp2515_handle_t* mcp){
-    esp_err_t err;
-
-    err = mcp2515_bit_modify(mcp, MCP_CANINTF,
-                       MCP_RX0IF | MCP_RX1IF,
-                       0);
-    if (err != ESP_OK) return err;
-
-    return mcp2515_write_reg(mcp, MCP_CANINTE,
-                      MCP_RX0IE | MCP_RX1IE);
-}
-
-static esp_err_t mcp2515_ctrl_reg_cfg(mcp2515_handle_t* mcp, const mcp2515_config_t* cfg){
-    if(!mcp || !cfg) return ESP_ERR_INVALID_ARG;
-    esp_err_t err;
-
-    err = mcp2515_bit_modify(mcp, MCP_RXBnCTRL(mcp_rxb_base[0]),
-        MCP_RXBnCTRL_BUKT_MASK, MCP_RXBnCTRL_BUKT(cfg->flags.rollover));
-    if(err != ESP_OK) return err;
-    err = mcp2515_bit_modify(mcp, MCP_RXBnCTRL(mcp_rxb_base[0]),
-        MCP_RXBnCTRL_RXM_MASK, MCP_RXBnCTRL_RXM(cfg->flags.rx_mode));
-    if(err != ESP_OK) return err;
-
-    err = mcp2515_bit_modify(mcp, MCP_RXBnSIDL(mcp_rxb_base[0]),
-        MCP_EXIDE_MASK, MCP_EXIDE(cfg->flags.RX0_EXIDE));
-    if(err != ESP_OK) return err;
-    err = mcp2515_bit_modify(mcp, MCP_RXBnSIDL(mcp_rxb_base[0]),
-        MCP_EXIDE_MASK, MCP_EXIDE(cfg->flags.RX1_EXIDE));
-    if(err != ESP_OK) return err;
-
-    return ESP_OK;
-}
-
 esp_err_t mcp2515_reset(mcp2515_handle_t* mcp) {
     if (!mcp || !mcp->spi)
         return ESP_ERR_INVALID_ARG;
@@ -294,54 +294,6 @@ esp_err_t mcp2515_reset(mcp2515_handle_t* mcp) {
 
     vTaskDelay(pdMS_TO_TICKS(10));
     return ESP_OK;
-}
-
-static esp_err_t mcp2515_read_reg(mcp2515_handle_t* mcp, uint8_t reg, uint8_t* val) {
-    if (!mcp || !mcp->spi)
-        return ESP_ERR_INVALID_ARG;
-
-    uint8_t tx_buf[3] = {MCP_CMD_READ, reg, 0x00};
-    uint8_t rx_buf[3] = {0};
-    spi_transaction_t t = {
-        .length = 8 * sizeof(tx_buf), .tx_buffer = tx_buf, .rx_buffer = rx_buf};
-
-    esp_err_t err = spi_device_transmit(mcp->spi, &t);
-    if (err != ESP_OK)
-        return err;
-
-    *val = rx_buf[2];
-    return ESP_OK;
-}
-
-static esp_err_t mcp2515_write_reg(mcp2515_handle_t* mcp, uint8_t reg, uint8_t val) {
-    if (!mcp || !mcp->spi)
-        return ESP_ERR_INVALID_ARG;
-
-    uint8_t tx_buf[3] = {MCP_CMD_WRITE, reg, val};
-    spi_transaction_t t = {.length = 8 * sizeof(tx_buf), .tx_buffer = tx_buf};
-
-    return spi_device_transmit(mcp->spi, &t);
-}
-
-static esp_err_t mcp2515_bit_modify(mcp2515_handle_t* mcp, uint8_t reg, uint8_t mask,
-                             uint8_t data) {
-    if(!mcp || !mcp->spi)
-        return ESP_ERR_INVALID_ARG;
-    
-    uint8_t tx[4] = {MCP_CMD_BIT_MODIFY, reg, mask, data};
-    spi_transaction_t t = {
-        .length = 8 * sizeof(tx),
-        .tx_buffer = tx,
-    };
-    return spi_device_transmit(mcp->spi, &t);
-}
-
-static bool mcp2515_is_awake(mcp2515_handle_t* mcp) {
-    uint8_t canstat;
-    if (mcp2515_read_reg(mcp, MCP_CANSTAT, &canstat) != ESP_OK)
-        return false;
-
-    return ((canstat & MCP_OPMOD_MASK) != MCP_OPMOD_SLEEP);
 }
 
 esp_err_t mcp2515_wake_up(mcp2515_handle_t* mcp) {
@@ -409,54 +361,37 @@ esp_err_t mcp2515_get_opmode(mcp2515_handle_t* mcp, mcp2515_opmode_t* mode) {
 esp_err_t mcp2515_transmit(mcp2515_handle_t* mcp, const mcp2515_frame_t* frame) {
     if (!mcp || frame->dlc > 8 ) return ESP_ERR_INVALID_ARG;
     esp_err_t err;
-    uint8_t sidh, sidl, eid8, eid0;
+
     err = mcp2515_bit_modify(mcp, MCP_TXBnSIDL(mcp_rxb_base[0]),
     MCP_EXIDE_MASK, MCP_EXIDE(frame->extended));
     if(err != ESP_OK) return err;
 
-    if(!frame->extended){
-        sidh = (frame->id >> 3) & MCP_SIDH_ID_MASK;
-        sidl = (frame->id & MCP_SIDL_ID_MASK) << 5;
-        eid8 = 0;
-        eid0 = 0;
-    }
-    else {
-        sidh = (frame->id >> 21) & MCP_SIDH_ID_MASK;
+    int8_t buf = mcp2515_get_free_tx_buffer(mcp);
+    if(buf < 0) return ESP_FAIL;
 
-        sidl = ((frame->id >> 16) & MCP_SIDL_EXT_ID_MASK1)
-             | ((frame->id >> 18) & MCP_SIDL_EXT_ID_MASK2)
-             | MCP_EXIDE_MASK;
+    uint8_t base = mcp_txb_base[buf];
 
-        eid8 = (frame->id >> MCP_EID8_OFFSET) & MCP_EIDn_ID_MASK;
-        eid0 = frame->id & MCP_EIDn_ID_MASK;
-    }
+    mcp2515_id_t id = mcp2515_pack_id(frame->id, frame->extended);
 
-    err = mcp2515_write_reg(mcp, MCP_TXBnSIDH(mcp_txb_base[0]), sidh);
+    err = mcp2515_write_reg(mcp, MCP_TXBnSIDH(base), id.sidh);
     if(err != ESP_OK) return err;
-    err = mcp2515_write_reg(mcp, MCP_TXBnSIDL(mcp_txb_base[0]), sidl);
+    err = mcp2515_write_reg(mcp, MCP_TXBnSIDL(base), id.sidl);
     if(err != ESP_OK) return err;
-    err = mcp2515_write_reg(mcp, MCP_TXBnEID8(mcp_txb_base[0]), eid8);
+    err = mcp2515_write_reg(mcp, MCP_TXBnEID8(base), id.eid8);
     if(err != ESP_OK) return err;
-    err = mcp2515_write_reg(mcp, MCP_TXBnEID0(mcp_txb_base[0]), eid0);
+    err = mcp2515_write_reg(mcp, MCP_TXBnEID0(base), id.eid0);
     if(err != ESP_OK) return err;
-    err = mcp2515_write_reg(mcp, MCP_TXBnDLC(mcp_txb_base[0]), frame->dlc);
+    err = mcp2515_write_reg(mcp, MCP_TXBnDLC(base), frame->dlc);
     if(err != ESP_OK) return err;
 
     for (int i = 0; i < frame->dlc; i++) {
-        err = mcp2515_write_reg(mcp, MCP_TXBnD0(mcp_txb_base[0]) + i, frame->data[i]);
+        err = mcp2515_write_reg(mcp, MCP_TXBnD0(base) + i, frame->data[i]);
         if(err != ESP_OK) return err;
     }
 
-    err = mcp2515_bit_modify(mcp, mcp_txb_base[0], MCP_TXBnTXREQ, MCP_TXBnTXREQ);
+    err = mcp2515_bit_modify(mcp, base, MCP_TXBnTXREQ, MCP_TXBnTXREQ);
     if(err != ESP_OK) return err;
     uint8_t ctrl;
-
-    do {
-        mcp2515_read_reg(mcp, mcp_txb_base[0], &ctrl);
-        if (!(ctrl & MCP_TXBnTXREQ))
-            break;
-        vTaskDelay(1);
-    } while (ctrl & MCP_TXBnTXREQ);
 
     if (ctrl & MCP_TXBnTXERR)
         return ESP_FAIL;
@@ -479,30 +414,23 @@ esp_err_t mcp2515_receive(mcp2515_handle_t* mcp, mcp2515_frame_t* frame) {
  
     uint8_t base = mcp_rxb_base[buf];
 
-    uint8_t sidh, sidl, eid8, eid0, dlc;
-    err = mcp2515_read_reg(mcp, MCP_RXBnSIDH(base), &sidh);
+    mcp2515_id_t id = {0};
+    uint8_t dlc;
+    err = mcp2515_read_reg(mcp, MCP_RXBnSIDH(base), &id.sidh);
     if(err != ESP_OK) return err;
-    err = mcp2515_read_reg(mcp, MCP_RXBnSIDL(base), &sidl);
+    err = mcp2515_read_reg(mcp, MCP_RXBnSIDL(base), &id.sidl);
     if(err != ESP_OK) return err;
-    err = mcp2515_read_reg(mcp, MCP_RXBnEID8(base), &eid8);
+    err = mcp2515_read_reg(mcp, MCP_RXBnEID8(base), &id.eid8);
     if(err != ESP_OK) return err;
-    err = mcp2515_read_reg(mcp, MCP_RXBnEID0(base), &eid0);
+    err = mcp2515_read_reg(mcp, MCP_RXBnEID0(base), &id.eid0);
     if(err != ESP_OK) return err;
     err = mcp2515_read_reg(mcp, MCP_RXBnDLC(base), &dlc);
     if(err != ESP_OK) return err;
 
-    frame->extended = sidl & MCP_EXIDE_MASK;
+    frame->extended = (id.sidl & MCP_EXIDE_MASK) != 0;
     frame->dlc = dlc & 0x0F;
 
-    if(!frame->extended){
-        frame->id = ((uint32_t)(sidh << 3) | (sidl >> 5));
-    } else {
-        frame->id =  ((uint32_t)sidh << 21) |
-                     ((uint32_t)(sidl & MCP_SIDL_EXT_ID_MASK2) << 13) |
-                     ((uint32_t)(sidl & MCP_SIDL_EXT_ID_MASK1) << 16) |
-                     ((uint32_t)eid8 << 8) |
-                     eid0; 
-    }
+    frame->id = mcp2515_unpack_id(id, frame->extended);
 
     for (int i = 0; i < (dlc & 0x0F); i++) {
         err = mcp2515_read_reg(mcp, MCP_RXBnDATA(base) + i, &frame->data[i]);
@@ -529,31 +457,17 @@ esp_err_t mcp2515_set_filter(mcp2515_handle_t* mcp, mcp_filter_t filter_reg, uin
         if(err != ESP_OK) return err;
     }
 
-    uint8_t sidh, sidl, eid0, eid8;
+    mcp2515_id_t id = mcp2515_pack_id(filter, extended);
 
-    if(!extended){
-        sidh = (filter >> 3) & MCP_SIDH_ID_MASK;
-        sidl = (filter & MCP_SIDL_ID_MASK) << 5;
-        eid8 = 0;
-        eid0 = 0;
-    } else{
-        sidh = (filter >> 21) & MCP_SIDH_ID_MASK;
+    uint8_t base = mcp_rxf_sidh_addr[filter_reg];
 
-        sidl = ((filter >> 16) & MCP_SIDL_EXT_ID_MASK1)
-             | ((filter >> 18) & MCP_SIDL_EXT_ID_MASK2)
-             | MCP_EXIDE_MASK;
-
-        eid8 = (filter >> MCP_EID8_OFFSET) & MCP_EIDn_ID_MASK;
-        eid0 = filter & MCP_EIDn_ID_MASK;
-    }
-
-    err = mcp2515_write_reg(mcp, MCP_RXFnSIDH(mcp_rxf_sidh_addr[filter_reg]), sidh);
+    err = mcp2515_write_reg(mcp, MCP_RXFnSIDH(base), id.sidh);
     if(err != ESP_OK) return err;
-    err = mcp2515_write_reg(mcp, MCP_RXFnSIDL(mcp_rxf_sidh_addr[filter_reg]), sidl);
+    err = mcp2515_write_reg(mcp, MCP_RXFnSIDL(base), id.sidl);
     if(err != ESP_OK) return err;
-    err = mcp2515_write_reg(mcp, MCP_RXFnEID8(mcp_rxf_sidh_addr[filter_reg]), eid8);
+    err = mcp2515_write_reg(mcp, MCP_RXFnEID8(base), id.eid8);
     if(err != ESP_OK) return err;
-    err = mcp2515_write_reg(mcp, MCP_RXFnEID0(mcp_rxf_sidh_addr[filter_reg]), eid0);
+    err = mcp2515_write_reg(mcp, MCP_RXFnEID0(base), id.eid0);
     if(err != ESP_OK) return err;
 
     if(opmode != MCP2515_OPMODE_CONFIGURATION)
@@ -573,32 +487,18 @@ esp_err_t mcp2515_set_mask(mcp2515_handle_t* mcp, mcp_mask_t mask_reg, uint32_t 
     
     if (opmode != MCP2515_OPMODE_CONFIGURATION)
         mcp2515_set_opmode(mcp, MCP2515_OPMODE_CONFIGURATION);
+    
+    mcp2515_id_t id = mcp2515_pack_id(mask, extended);
 
-    uint8_t sidh, sidl, eid0, eid8;
+    uint8_t base = mcp_rxm_base_addr[mask_reg];
 
-    if(!extended){
-        sidh = (mask >> 3) & MCP_SIDH_ID_MASK;
-        sidl = (mask & MCP_SIDL_ID_MASK) << 5;
-        eid8 = 0;
-        eid0 = 0;
-    } else{
-        sidh = (mask >> 21) & MCP_SIDH_ID_MASK;
-
-        sidl = ((mask >> 16) & MCP_SIDL_EXT_ID_MASK1)
-             | ((mask >> 18) & MCP_SIDL_EXT_ID_MASK2)
-             | MCP_EXIDE_MASK;
-
-        eid8 = (mask >> MCP_EID8_OFFSET) & MCP_EIDn_ID_MASK;
-        eid0 = mask & MCP_EIDn_ID_MASK;
-    }
-
-    err = mcp2515_write_reg(mcp, MCP_RXMnSIDH(mcp_rxm_base_addr[mask_reg]), sidh);
+    err = mcp2515_write_reg(mcp, MCP_RXMnSIDH(base), id.sidh);
     if(err != ESP_OK) return err;
-    err = mcp2515_write_reg(mcp, MCP_RXMnSIDL(mcp_rxm_base_addr[mask_reg]), sidl);
+    err = mcp2515_write_reg(mcp, MCP_RXMnSIDL(base), id.sidl);
     if(err != ESP_OK) return err;
-    err = mcp2515_write_reg(mcp, MCP_RXMnEID8(mcp_rxm_base_addr[mask_reg]), eid8);
+    err = mcp2515_write_reg(mcp, MCP_RXMnEID8(base), id.eid8);
     if(err != ESP_OK) return err;
-    err = mcp2515_write_reg(mcp, MCP_RXMnEID0(mcp_rxm_base_addr[mask_reg]), eid0);
+    err = mcp2515_write_reg(mcp, MCP_RXMnEID0(base), id.eid0);
     if(err != ESP_OK) return err;
 
     if(opmode != MCP2515_OPMODE_CONFIGURATION)
@@ -625,14 +525,155 @@ esp_err_t mcp2515_configure_timing(mcp2515_handle_t* mcp, mcp2515_crystal_t crys
     return ESP_OK;
 }
 
+esp_err_t mcp2515_create_frame(mcp2515_frame_t* frame, uint8_t* data, uint8_t dlc, uint32_t id, bool extended){
+    if(!frame || !data || dlc > 8) return ESP_ERR_INVALID_ARG;
+
+    frame->id = id;
+    frame->dlc = dlc;
+    frame->extended = extended;
+
+    for (int i = 0; i < dlc; i++)
+        frame->data[i] = data[i];
+
+    return ESP_OK;
+}
+
+static esp_err_t mcp2515_read_reg(mcp2515_handle_t* mcp, uint8_t reg, uint8_t* val) {
+    if (!mcp || !mcp->spi)
+        return ESP_ERR_INVALID_ARG;
+
+    uint8_t tx_buf[3] = {MCP_CMD_READ, reg, 0x00};
+    uint8_t rx_buf[3] = {0};
+    spi_transaction_t t = {
+        .length = 8 * sizeof(tx_buf), .tx_buffer = tx_buf, .rx_buffer = rx_buf};
+
+    esp_err_t err = spi_device_transmit(mcp->spi, &t);
+    if (err != ESP_OK)
+        return err;
+
+    *val = rx_buf[2];
+    return ESP_OK;
+}
+
+static esp_err_t mcp2515_write_reg(mcp2515_handle_t* mcp, uint8_t reg, uint8_t val) {
+    if (!mcp || !mcp->spi)
+        return ESP_ERR_INVALID_ARG;
+
+    uint8_t tx_buf[3] = {MCP_CMD_WRITE, reg, val};
+    spi_transaction_t t = {.length = 8 * sizeof(tx_buf), .tx_buffer = tx_buf};
+
+    return spi_device_transmit(mcp->spi, &t);
+}
+
+static esp_err_t mcp2515_bit_modify(mcp2515_handle_t* mcp, uint8_t reg, uint8_t mask,
+                             uint8_t data) {
+    if(!mcp || !mcp->spi)
+        return ESP_ERR_INVALID_ARG;
+    
+    uint8_t tx[4] = {MCP_CMD_BIT_MODIFY, reg, mask, data};
+    spi_transaction_t t = {
+        .length = 8 * sizeof(tx),
+        .tx_buffer = tx,
+    };
+    return spi_device_transmit(mcp->spi, &t);
+}
+
+static bool mcp2515_is_awake(mcp2515_handle_t* mcp) {
+    uint8_t canstat;
+    if (mcp2515_read_reg(mcp, MCP_CANSTAT, &canstat) != ESP_OK)
+        return false;
+
+    return ((canstat & MCP_OPMOD_MASK) != MCP_OPMOD_SLEEP);
+}
+
 static const mcp2515_timing_cfg_t* mcp2515_find_timing(mcp2515_crystal_t crystal, mcp2515_bitrate_t bitrate) {
     size_t size = (sizeof(timing_table) / sizeof(timing_table[0]));
     for (size_t i = 0; i < size; i++) {
         if (timing_table[i].crystal == crystal &&
             timing_table[i].bitrate == bitrate) {
-            return &timing_table[i]; // note down that pointer is used to not copy the values but instead point to them 
+            return &timing_table[i];
         }
     }
     return NULL;
 }
 
+static esp_err_t mcp2515_configure_interrupts(mcp2515_handle_t* mcp){
+    esp_err_t err;
+
+    err = mcp2515_bit_modify(mcp, MCP_CANINTF,
+                       MCP_RX0IF | MCP_RX1IF,
+                       0);
+    if (err != ESP_OK) return err;
+
+    return mcp2515_write_reg(mcp, MCP_CANINTE,
+                      MCP_RX0IE | MCP_RX1IE);
+}
+
+static esp_err_t mcp2515_ctrl_reg_cfg(mcp2515_handle_t* mcp, const mcp2515_config_t* cfg){
+    if(!mcp || !cfg) return ESP_ERR_INVALID_ARG;
+    esp_err_t err;
+
+    err = mcp2515_bit_modify(mcp, MCP_RXBnCTRL(mcp_rxb_base[0]),
+        MCP_RXBnCTRL_BUKT_MASK, MCP_RXBnCTRL_BUKT(cfg->flags.rollover));
+    if(err != ESP_OK) return err;
+    err = mcp2515_bit_modify(mcp, MCP_RXBnCTRL(mcp_rxb_base[0]),
+        MCP_RXBnCTRL_RXM_MASK, MCP_RXBnCTRL_RXM(cfg->flags.rx_mode));
+    if(err != ESP_OK) return err;
+
+    err = mcp2515_bit_modify(mcp, MCP_RXBnSIDL(mcp_rxb_base[0]),
+        MCP_EXIDE_MASK, MCP_EXIDE(cfg->flags.RX0_EXIDE));
+    if(err != ESP_OK) return err;
+    err = mcp2515_bit_modify(mcp, MCP_RXBnSIDL(mcp_rxb_base[0]),
+        MCP_EXIDE_MASK, MCP_EXIDE(cfg->flags.RX1_EXIDE));
+    if(err != ESP_OK) return err;
+
+    return ESP_OK;
+}
+
+static mcp2515_id_t mcp2515_pack_id(uint32_t id, bool extended){
+    mcp2515_id_t out = {0};
+
+    if(!extended){
+        out.sidh = (id >> 3) & MCP_SIDH_ID_MASK;
+        out.sidl = (id & MCP_SIDL_ID_MASK) << 5;
+        out.eid8 = 0;
+        out.eid0 = 0;
+    } else{
+        out.sidh = (id >> 21) & MCP_SIDH_ID_MASK;
+
+        out.sidl = ((id >> 16) & MCP_SIDL_EXT_ID_MASK1)
+             | ((id >> 18) & MCP_SIDL_EXT_ID_MASK2)
+             | MCP_EXIDE_MASK;
+
+        out.eid8 = (id >> MCP_EID8_OFFSET) & MCP_EIDn_ID_MASK;
+        out.eid0 = id & MCP_EIDn_ID_MASK;
+    }
+
+    return out;
+}
+
+static uint32_t mcp2515_unpack_id(mcp2515_id_t id, bool extended){
+    uint32_t out = 0;
+
+    if(!extended){
+        out = ((uint32_t)(id.sidh << 3) | (id.sidl >> 5));
+    } else {
+        out =  ((uint32_t)id.sidh << 21) |
+                     ((uint32_t)(id.sidl & MCP_SIDL_EXT_ID_MASK2) << 13) |
+                     ((uint32_t)(id.sidl & MCP_SIDL_EXT_ID_MASK1) << 16) |
+                     ((uint32_t)id.eid8 << MCP_EID8_OFFSET) |
+                     id.eid0; 
+    }
+
+    return out;
+}
+
+static int8_t mcp2515_get_free_tx_buffer(mcp2515_handle_t* mcp) {
+    uint8_t ctrl;
+    for (int i = 0; i < 3; i++) {
+        mcp2515_read_reg(mcp, mcp_txb_base[i], &ctrl);
+        if (!(ctrl & MCP_TXBnTXREQ)) 
+            return i;
+    }
+    return -1; 
+}

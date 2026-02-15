@@ -72,13 +72,9 @@ void app_main(void) {
     mcp2515_set_opmode(&mcp2515, MCP2515_OPMODE_LOOPBACK);
     
     uint8_t message = 253;
-    // make a building helper function?
-    mcp2515_frame_t transmit_data = {
-        .data = { message },
-        .dlc = 1,
-        .id = 0xFFF,
-        .extended = true
-    };
+
+    mcp2515_frame_t transmit_data;
+    mcp2515_create_frame(&transmit_data, &message, 1, 0xFFF, true);
     
     mcp2515_transmit(&mcp2515, &transmit_data);
 

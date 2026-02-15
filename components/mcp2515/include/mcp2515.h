@@ -290,4 +290,19 @@ esp_err_t mcp2515_set_filter(mcp2515_handle_t* mcp, mcp_filter_t filter_reg, uin
  */
 esp_err_t mcp2515_set_mask(mcp2515_handle_t* mcp, mcp_mask_t mask_reg, uint32_t mask, bool extended);
 
+/**
+ * @brief Helper function to create a message frame.
+ * 
+ * @param[out] frame frame to be created.
+ * @param[in] data message data.
+ * @param[in] dlc message length.
+ * @param[in] id message id.
+ * @param[in] extended does message use extended ids.
+ * 
+ * @return
+ *      - ESP_OK: message created successfully.
+ *      - ESP_ERR_INVALID_ARG: frame or data is NULL or dlc > 8.
+ */
+esp_err_t mcp2515_create_frame(mcp2515_frame_t* frame, uint8_t* data, uint8_t dlc, uint32_t id, bool extended);
+
 #endif
