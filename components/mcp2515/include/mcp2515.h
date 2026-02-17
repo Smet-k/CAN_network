@@ -18,8 +18,8 @@
  * options to turn on/off filters and masks.
  */
 typedef enum {
-    MCP2515_RXM_ON = 0x00, /** masks/filters ON */
-    MCP2515_RXM_OFF = 0x03 /** masks/filters OFF */
+    MCP2515_RXM_OFF = 0x00, /** masks/filters ON */
+    MCP2515_RXM_ON = 0x03 /** masks/filters OFF */
 } mcp2515_rxm_t;
 
 /**

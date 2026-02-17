@@ -74,12 +74,12 @@
 
 static const mcp2515_timing_cfg_t timing_table[] = {
     {MCP2515_CRYSTAL_8MHZ, MCP2515_BITRATE_500KBPS, 0x00, 0x90, 0x02},
-    {MCP2515_CRYSTAL_8MHZ, MCP2515_BITRATE_250KBPS, 0x00, 0xA1, 0x06},
-    {MCP2515_CRYSTAL_8MHZ, MCP2515_BITRATE_125KBPS, 0x01, 0xA1, 0x06},
-
-    {MCP2515_CRYSTAL_16MHZ, MCP2515_BITRATE_500KBPS, 0x00, 0xD1, 0x81},
-    {MCP2515_CRYSTAL_16MHZ, MCP2515_BITRATE_250KBPS, 0x01, 0xD1, 0x81},
-    {MCP2515_CRYSTAL_16MHZ, MCP2515_BITRATE_125KBPS, 0x03, 0xD1, 0x81},
+    {MCP2515_CRYSTAL_8MHZ, MCP2515_BITRATE_250KBPS, 0x01, 0x90, 0x02}, 
+    {MCP2515_CRYSTAL_8MHZ, MCP2515_BITRATE_125KBPS, 0x01, 0xB1, 0x05},
+    
+    {MCP2515_CRYSTAL_16MHZ, MCP2515_BITRATE_500KBPS, 0x00, 0xB1, 0x05},
+    {MCP2515_CRYSTAL_16MHZ, MCP2515_BITRATE_250KBPS, 0x01, 0xB1, 0x05},
+    {MCP2515_CRYSTAL_16MHZ, MCP2515_BITRATE_125KBPS, 0x03, 0xB1, 0x05},
 };
 
 static const uint8_t mcp_txb_base[3] = {
@@ -242,15 +242,6 @@ esp_err_t mcp2515_init(mcp2515_handle_t* mcp, const mcp2515_config_t* cfg) {
         .queue_size = 7,
     };
 
-    gpio_config_t cs_conf = {
-        .pin_bit_mask = 1ULL << cfg->gpio_cs,
-        .mode = GPIO_MODE_OUTPUT,
-        .pull_up_en = GPIO_PULLUP_DISABLE,
-        .pull_down_en = GPIO_PULLDOWN_DISABLE,
-    };
-    gpio_config(&cs_conf);
-    gpio_set_level(cfg->gpio_cs, 1);
-
     err = spi_bus_add_device(cfg->spi_host, &devcfg, &mcp->spi);
     if (err != ESP_OK)
         return err;
@@ -362,15 +353,10 @@ esp_err_t mcp2515_transmit(mcp2515_handle_t* mcp, const mcp2515_frame_t* frame) 
     if (!mcp || frame->dlc > 8 ) return ESP_ERR_INVALID_ARG;
     esp_err_t err;
 
-    err = mcp2515_bit_modify(mcp, MCP_TXBnSIDL(mcp_rxb_base[0]),
-    MCP_EXIDE_MASK, MCP_EXIDE(frame->extended));
-    if(err != ESP_OK) return err;
-
     int8_t buf = mcp2515_get_free_tx_buffer(mcp);
     if(buf < 0) return ESP_FAIL;
 
     uint8_t base = mcp_txb_base[buf];
-
     mcp2515_id_t id = mcp2515_pack_id(frame->id, frame->extended);
 
     err = mcp2515_write_reg(mcp, MCP_TXBnSIDH(base), id.sidh);
@@ -389,17 +375,15 @@ esp_err_t mcp2515_transmit(mcp2515_handle_t* mcp, const mcp2515_frame_t* frame) 
         if(err != ESP_OK) return err;
     }
 
-    err = mcp2515_bit_modify(mcp, base, MCP_TXBnTXREQ, MCP_TXBnTXREQ);
-    if(err != ESP_OK) return err;
     uint8_t ctrl;
 
     err = mcp2515_read_reg(mcp, base, &ctrl);
     if(err != ESP_OK) return err;
-    
+
     if (ctrl & MCP_TXBnTXERR)
         return ESP_FAIL;
 
-    return ESP_OK;
+    return mcp2515_bit_modify(mcp, base, MCP_TXBnTXREQ, MCP_TXBnTXREQ);
 }
 
 esp_err_t mcp2515_receive(mcp2515_handle_t* mcp, mcp2515_frame_t* frame) {
@@ -439,7 +423,6 @@ esp_err_t mcp2515_receive(mcp2515_handle_t* mcp, mcp2515_frame_t* frame) {
         err = mcp2515_read_reg(mcp, MCP_RXBnDATA(base) + i, &frame->data[i]);
         if(err != ESP_OK) return err;
     }
-
 
     return mcp2515_bit_modify(mcp, MCP_CANINTF,
         buf == 0 ? MCP_RX0IF : MCP_RX1IF,
@@ -626,7 +609,7 @@ static esp_err_t mcp2515_ctrl_reg_cfg(mcp2515_handle_t* mcp, const mcp2515_confi
     err = mcp2515_bit_modify(mcp, MCP_RXBnSIDL(mcp_rxb_base[0]),
         MCP_EXIDE_MASK, MCP_EXIDE(cfg->flags.RX0_EXIDE));
     if(err != ESP_OK) return err;
-    err = mcp2515_bit_modify(mcp, MCP_RXBnSIDL(mcp_rxb_base[0]),
+    err = mcp2515_bit_modify(mcp, MCP_RXBnSIDL(mcp_rxb_base[1]),
         MCP_EXIDE_MASK, MCP_EXIDE(cfg->flags.RX1_EXIDE));
     if(err != ESP_OK) return err;
 

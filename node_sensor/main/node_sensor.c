@@ -22,7 +22,7 @@
 
 #define I2C_PORT I2C_NUM_0
 
-#define SPI_BAUD_RATE 4 * 1000 * 1000
+#define SPI_BAUD_RATE 4 * 500 * 1000
 
 #define NETWORK_TEMP_ID 0x100
 #define NETWORK_PRESSURE_ID 0x101
@@ -64,12 +64,12 @@ void app_main(void) {
         .clock_hz = SPI_BAUD_RATE,
         .gpio_cs = MCP_CS,
         .gpio_int = MCP_INT,
-        .flags.rx_mode = MCP2515_RXM_OFF,
+        .flags.rx_mode = MCP2515_RXM_ON,
         .flags.RX0_EXIDE = MCP2515_EXIDE_OFF};
 
     ESP_ERROR_CHECK(mcp2515_init(&mcp2515, &mcp_cfg));
-    ESP_ERROR_CHECK(mcp2515_configure_timing(&mcp2515, MCP2515_CRYSTAL_8MHZ, MCP2515_BITRATE_500KBPS));
-    ESP_ERROR_CHECK(mcp2515_set_opmode(&mcp2515, MCP2515_OPMODE_LOOPBACK)); // tmp
+    ESP_ERROR_CHECK(mcp2515_configure_timing(&mcp2515, MCP2515_CRYSTAL_8MHZ, MCP2515_BITRATE_125KBPS));
+    ESP_ERROR_CHECK(mcp2515_set_opmode(&mcp2515, MCP2515_OPMODE_NORMAL)); // tmp
 
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(1000));
@@ -83,7 +83,7 @@ void app_main(void) {
         pres_union.d = measurements.pressure;
 
         ESP_ERROR_CHECK(mcp2515_create_frame(&transmit_frame, temp_union.bytes, 8, NETWORK_TEMP_ID, 0));
-        err = mcp2515_transmit(&mcp2515, &transmit_frame);
+        err = mcp2515_transmit(&mcp2515, &transmit_frame);\
         if (err ==  ESP_FAIL){
             printf("Failed to send the message.\n");
             continue;
