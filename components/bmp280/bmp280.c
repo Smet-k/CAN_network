@@ -240,10 +240,13 @@ static esp_err_t bmp280_load_calibration(bmp280_t* bmp280) {
 static int32_t bmp280_compensate_t(bmp280_t* dev, const int raw_temp) {
     int32_t var1, var2, T;
     var1 = ((((raw_temp >> 3) - ((int32_t)dev->calibration.dig_T1 << 1))) *
-            ((int32_t)dev->calibration.dig_T2)) >> 11;
+            ((int32_t)dev->calibration.dig_T2)) >>
+           11;
     var2 = (((((raw_temp >> 4) - ((int32_t)dev->calibration.dig_T1)) *
-              ((raw_temp >> 4) - ((int32_t)dev->calibration.dig_T1))) >> 12) *
-            ((int32_t)dev->calibration.dig_T3)) >> 14;
+              ((raw_temp >> 4) - ((int32_t)dev->calibration.dig_T1))) >>
+             12) *
+            ((int32_t)dev->calibration.dig_T3)) >>
+           14;
 
     dev->t_fine = var1 + var2;
     T = (dev->t_fine * 5 + 128) >> 8;

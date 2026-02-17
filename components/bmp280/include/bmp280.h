@@ -26,12 +26,12 @@ typedef enum {
     BMP_OSRS_X2,
     BMP_OSRS_X4,
     BMP_OSRS_X8,
-    BMP_OSRS_X16 
+    BMP_OSRS_X16
 } bmp280_osrs_t;
 
 /**
  * @brief bmp280 calibration for compensation calculation.
- * 
+ *
  * Calibration parameters read from the BMP280's non-volatile memory.
  * These values are used by the temperature and pressure compensation
  * functions.
@@ -59,7 +59,7 @@ typedef struct {
  */
 typedef struct {
     double temperature; /**< Temperature in °C */
-    double pressure; /**< Pressure in Pa */
+    double pressure;    /**< Pressure in Pa */
 } bmp280_measurements;
 
 /**
@@ -77,12 +77,12 @@ typedef struct {
 
 /**
  * @brief Initialize bmp280 device.
- * 
+ *
  * The bmp280 handle must remain valid for the lifetime of the device usage.
  * @param[out] bmp280 pointer to bmp280 handle.
  * @param[in] work_mode bmp280 operating mode.
  * @param[in] bus_handle Initialized I2C bus handle.
- * 
+ *
  * @return
  *      - ESP_OK: BMP280 initialized successfully.
  *      - ESP_ERR_INVALID_ARG: bmp280 or bus_handle is NULL.
@@ -94,12 +94,12 @@ esp_err_t bmp280_initialize(bmp280_t* bmp280, bmp280_mode_t work_mode,
 
 /**
  * @brief read from bmp280 data registers.
- * 
+ *
  * @note bmp280_initialize() must be called successfully before this function
- * 
+ *
  * @param[in] bmp280 bmp280 handle.
  * @param[out] measurements bmp280 measurements.
- * 
+ *
  * @return
  *      - ESP_OK: data read successfully.
  */
@@ -107,10 +107,10 @@ esp_err_t bmp280_read(bmp280_t* bmp280, bmp280_measurements* measurements);
 
 /**
  * @brief make bmp280 take measurements in FORCE mode
- * 
+ *
  * @param[in] bmp280 bmp280 handle.
  * @param[in] timeout_ms measurement timeout in ms.
- * 
+ *
  * @return
  *      - ESP_OK: measurement has been taken.
  */
@@ -118,11 +118,11 @@ esp_err_t bmp280_force_measurement(bmp280_t* bmp280, const uint16_t timeout_ms);
 
 /**
  * @brief resets bmp280 device.
- * 
+ *
  * device is reset using the compete power-on-reset procedure.
- * 
+ *
  * @param[in] bmp280 bmp280 handle.
- * 
+ *
  * @return
  *      - ESP_OK: device reset successfully.
  *      - ESP_ERR_INVALID_ARG: bmp280 is NULL.

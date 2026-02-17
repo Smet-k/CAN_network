@@ -19,7 +19,7 @@
  */
 typedef enum {
     MCP2515_RXM_OFF = 0x00, /** masks/filters ON */
-    MCP2515_RXM_ON = 0x03 /** masks/filters OFF */
+    MCP2515_RXM_ON = 0x03   /** masks/filters OFF */
 } mcp2515_rxm_t;
 
 /**
@@ -67,7 +67,7 @@ typedef enum {
 /**
  * @brief Configuration of timings for MCP2515.
  */
-typedef struct{
+typedef struct {
     mcp2515_crystal_t crystal;
     mcp2515_bitrate_t bitrate;
     uint8_t cnf1;
@@ -98,7 +98,7 @@ typedef enum {
  * @brief Priorities of MCP2515 messages
  */
 typedef enum {
-    MCP2515_PRIORITY_LOWEST =0x00,
+    MCP2515_PRIORITY_LOWEST = 0x00,
     MCP2515_PRIORITY_LOW,
     MCP2515_PRIORITY_HIGH,
     MCP2515_PRIORITY_HIGHEST
@@ -111,7 +111,6 @@ typedef enum {
     MCP2515_MASK0 = 0,
     MCP2515_MASK1 = 1
 } mcp_mask_t;
-
 
 /**
  * @brief MCP2515 filters.
@@ -127,7 +126,7 @@ typedef enum {
 
 /**
  * @brief MCP2515 transmit buffers.
- * 
+ *
  * used to pick which buffer will be used by certain functions.
  */
 typedef enum {
@@ -138,7 +137,7 @@ typedef enum {
 
 /**
  * @brief MCP2515 receive buffers.
- * 
+ *
  * used to pick which buffer will be used by certain functions.
  */
 typedef enum {
@@ -159,11 +158,11 @@ typedef struct {
 
 /**
  * @brief Initialize MCP2515 device.
- * 
+ *
  * The MCP2515 handle must remain valid for the lifetime of the device usage.
  * @param[out] mcp pointer to MCP2515 handle.
  * @param[in] cfg MCP2515 configuration.
- * 
+ *
  * @return
  *      - ESP_OK: MCP2515 initialized successfully.
  *      - ESP_ERR_INVALID_ARG: mcp, cfg is NULL or cfg's cloch_hz is <= 0.
@@ -172,9 +171,9 @@ esp_err_t mcp2515_init(mcp2515_handle_t* mcp, const mcp2515_config_t* cfg);
 
 /**
  * @brief Reset MCP2515.
- * 
+ *
  * @param[in] mcp pointer to MCP2515 handle.
- * 
+ *
  * @return
  *      - ESP_OK: MCP2515 reset successfully.
  *      - ESP_ERR_INVALID_ARG: mcp or mcp->spi is NULL.
@@ -183,9 +182,9 @@ esp_err_t mcp2515_reset(mcp2515_handle_t* mcp);
 
 /**
  * @brief Wakes up the MCP2515.
- * 
+ *
  * @param[in] mcp pointer to MCP2515 handle.
- * 
+ *
  * @return
  *      - ESP_OK: MCP2515 wake up is successful.
  *      - ESP_ERR_INVALID_ARG: mcp or mcp->spi is NULL.
@@ -194,25 +193,25 @@ esp_err_t mcp2515_wake_up(mcp2515_handle_t* mcp);
 
 /**
  * @brief Set MCP2515 operation mode.
- * 
+ *
  * @param[in] mcp pointer to MCP2515 handle.
  * @param[in] mode new MCP2515 operation mode.
- * 
+ *
  * @return
  *      - ESP_OK: operation mode set successfully.
  *      - ESP_ERR_INVALID_ARG: mcp or mcp->spi is NULL or provided operation mode doesn't fit the mask.
  *      - ESP_ERR_TIMEOUT: operation mode change timed out.
- * 
+ *
  * @note To change to the mode other than CONFIGURE, device must be in CONFIGURE operation mode.
  */
 esp_err_t mcp2515_set_opmode(mcp2515_handle_t* mcp, mcp2515_opmode_t mode);
 
 /**
  * @brief Get MCP2515 current operation mode.
- * 
+ *
  * @param[in] mcp pointer to MCP2515 handle.
  * @param[out] mode current MCP2515 operation mode.
- * 
+ *
  * @return
  *      - ESP_OK: operation mode read successfully.
  *      - ESP_ERR_INVALID_MODE: mcp or mode is NULL.
@@ -221,10 +220,10 @@ esp_err_t mcp2515_get_opmode(mcp2515_handle_t* mcp, mcp2515_opmode_t* mode);
 
 /**
  * @brief Transmit a CAN bus message.
- * 
+ *
  * @param[in] mcp pointer to MCP2515 handle.
  * @param[in] frame message frame to be transmit.
- * 
+ *
  * @return
  *      - ESP_OK: message transmission was successful.
  *      - ESP_ERR_INVALID_ARG: mcp or dlc is NULL.
@@ -234,26 +233,26 @@ esp_err_t mcp2515_transmit(mcp2515_handle_t* mcp, const mcp2515_frame_t* frame);
 
 /**
  * @brief Receive a CAN bus message.
- * 
+ *
  * @param[in] mcp pointer in MCP2515 handle.
  * @param[out] frame received canbus message.
- * 
+ *
  * @return
  *      - ESP_OK: message received successfully.
  *      - ESP_ERR_INVALID_ARG: mcp or frame is NULL.
  *      - ESP_ERR_NOT_FOUND: no messages to receive or receival failed.
- * 
+ *
  * @note MCP2515 CAN bus timings must be set up (mcp2515_configure_timing()) before message receival.
  */
 esp_err_t mcp2515_receive(mcp2515_handle_t* mcp, mcp2515_frame_t* frame);
 
 /**
  * @brief Configure MCP2515 CAN bus timings.
- * 
+ *
  * @param[in] mcp pointer to MCP2515 handle.
  * @param[in] crystal MCP2515 frequency.
  * @param[in] bitrate CAN bus bitrate.
- * 
+ *
  * @return
  *      - ESP_OK: CAN bus timings configured successfully.
  *      - ESP_ERR_INVALID_ARG: mcp is NULL.
@@ -264,12 +263,12 @@ esp_err_t mcp2515_configure_timing(mcp2515_handle_t* mcp, mcp2515_crystal_t crys
 
 /**
  * @brief set CAN bus filters.
- * 
+ *
  * @param[in] mcp pointer to MCP2515 handle.
  * @param[in] filter_reg filter register to be set.
  * @param[in] filter filter value.
  * @param[in] extended flag for extended id usage.
- * 
+ *
  * @return
  *      - ESP_OK: filters set successfully.
  *      - ESP_ERR_INVALID_ARG: mcp is NULL.
@@ -278,12 +277,12 @@ esp_err_t mcp2515_set_filter(mcp2515_handle_t* mcp, mcp_filter_t filter_reg, uin
 
 /**
  * @brief Sets a mask for provided register.
- * 
+ *
  * @param[in] mcp pointer to MCP2515 handle.
  * @param[in] mask_reg mask register to be set.
  * @param[in] mask mask value.
  * @param[in] extended flag for extended id usage.
- * 
+ *
  * @return
  *      - ESP_OK: mask set successfully.
  *      - ESP_ERR_INVALID_ARG: mcp is NULL.
@@ -292,13 +291,13 @@ esp_err_t mcp2515_set_mask(mcp2515_handle_t* mcp, mcp_mask_t mask_reg, uint32_t 
 
 /**
  * @brief Helper function to create a message frame.
- * 
+ *
  * @param[out] frame frame to be created.
  * @param[in] data message data.
  * @param[in] dlc message length.
  * @param[in] id message id.
  * @param[in] extended does message use extended ids.
- * 
+ *
  * @return
  *      - ESP_OK: message created successfully.
  *      - ESP_ERR_INVALID_ARG: frame or data is NULL or dlc > 8.

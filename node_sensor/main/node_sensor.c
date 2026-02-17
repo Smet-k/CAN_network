@@ -69,7 +69,7 @@ void app_main(void) {
 
     ESP_ERROR_CHECK(mcp2515_init(&mcp2515, &mcp_cfg));
     ESP_ERROR_CHECK(mcp2515_configure_timing(&mcp2515, MCP2515_CRYSTAL_8MHZ, MCP2515_BITRATE_125KBPS));
-    ESP_ERROR_CHECK(mcp2515_set_opmode(&mcp2515, MCP2515_OPMODE_NORMAL)); // tmp
+    ESP_ERROR_CHECK(mcp2515_set_opmode(&mcp2515, MCP2515_OPMODE_NORMAL));  // tmp
 
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(1000));
@@ -77,20 +77,20 @@ void app_main(void) {
         bmp280_measurements measurements;
         mcp2515_frame_t transmit_frame;
         ESP_ERROR_CHECK(bmp280_read(&bmp280, &measurements));
-        
+
         double_bytes_t temp_union, pres_union;
         temp_union.d = measurements.temperature;
         pres_union.d = measurements.pressure;
 
         ESP_ERROR_CHECK(mcp2515_create_frame(&transmit_frame, temp_union.bytes, 8, NETWORK_TEMP_ID, 0));
-        err = mcp2515_transmit(&mcp2515, &transmit_frame);\
-        if (err ==  ESP_FAIL){
+        err = mcp2515_transmit(&mcp2515, &transmit_frame);
+        if (err == ESP_FAIL) {
             printf("Failed to send the message.\n");
             continue;
         }
         ESP_ERROR_CHECK(mcp2515_create_frame(&transmit_frame, pres_union.bytes, 8, NETWORK_PRESSURE_ID, 0));
         err = mcp2515_transmit(&mcp2515, &transmit_frame);
-        if (err ==  ESP_FAIL){
+        if (err == ESP_FAIL) {
             printf("Failed to send the message.\n");
             continue;
         }
