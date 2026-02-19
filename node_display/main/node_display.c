@@ -8,6 +8,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "mcp2515.h"
+#include "lcd.h"
 #include "sdkconfig.h"
 
 #define MCP_MISO GPIO_NUM_16
@@ -15,6 +16,12 @@
 #define MCP_SCK GPIO_NUM_18
 #define MCP_CS GPIO_NUM_4
 #define MCP_INT GPIO_NUM_19
+
+#define LCD_ADDR 0x27
+#define LCD_WRITE_ADDR 0x4E
+#define LCD_READ_ADDR 0x4F
+#define LCD_SDA GPIO_NUM_27
+#define LCD_SCL GPIO_NUM_26
 
 #define I2C_PORT I2C_NUM_0
 
@@ -40,6 +47,19 @@ void app_main(void) {
 
     ESP_ERROR_CHECK(spi_bus_initialize(SPI2_HOST, &spi_buscfg, SPI_DMA_CH_AUTO));
 
+    i2c_master_bus_config_t i2c_buscfg = {
+        .i2c_port = I2C_PORT,
+        .sda_io_num = LCD_SDA,
+        .scl_io_num = LCD_SCL,
+        .glitch_ignore_cnt = 7,
+        // MAYBE TO BE REMOVED
+        .flags.enable_internal_pullup = true,
+        .clk_source = I2C_CLK_SRC_DEFAULT
+    };
+
+    i2c_master_bus_handle_t bus_handle;
+    ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_buscfg, &bus_handle));
+
     mcp2515_handle_t mcp2515;
     mcp2515_config_t mcp_cfg = {
         .spi_host = SPI2_HOST,
@@ -49,10 +69,19 @@ void app_main(void) {
         .flags.rx_mode = MCP2515_RXM_ON,
         .flags.RX0_EXIDE = MCP2515_EXIDE_OFF};
 
-    mcp2515_init(&mcp2515, &mcp_cfg);
-    mcp2515_configure_timing(&mcp2515, MCP2515_CRYSTAL_8MHZ, MCP2515_BITRATE_125KBPS);
-    mcp2515_set_opmode(&mcp2515, MCP2515_OPMODE_NORMAL);
+    ESP_ERROR_CHECK(mcp2515_init(&mcp2515, &mcp_cfg));
+    ESP_ERROR_CHECK(mcp2515_configure_timing(&mcp2515, MCP2515_CRYSTAL_8MHZ, MCP2515_BITRATE_125KBPS));
+    ESP_ERROR_CHECK(mcp2515_set_opmode(&mcp2515, MCP2515_OPMODE_NORMAL));
     double temperature = 0, pressure = 0;
+
+    lcd_t lcd;
+    ESP_ERROR_CHECK(lcd_initialize(&lcd, bus_handle));
+
+    char* text = "Hello, World!";
+    while (*text) {
+        uint8_t test = *text++; 
+        ESP_ERROR_CHECK(lcd_send_data(&lcd, test));
+    }
 
     while (1) {
         mcp2515_frame_t received_data;
