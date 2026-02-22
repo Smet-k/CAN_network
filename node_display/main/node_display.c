@@ -1,4 +1,3 @@
-#include <math.h>
 #include <stdio.h>
 
 #include "driver/gpio.h"
@@ -72,17 +71,19 @@ void app_main(void) {
     ESP_ERROR_CHECK(mcp2515_init(&mcp2515, &mcp_cfg));
     ESP_ERROR_CHECK(mcp2515_configure_timing(&mcp2515, MCP2515_CRYSTAL_8MHZ, MCP2515_BITRATE_125KBPS));
     ESP_ERROR_CHECK(mcp2515_set_opmode(&mcp2515, MCP2515_OPMODE_NORMAL));
-    double temperature = 0, pressure = 0;
 
-    lcd_t lcd;
-    ESP_ERROR_CHECK(lcd_initialize(&lcd, bus_handle));
+    lcd_config_t lcd_cfg = {
+        .bus = bus_handle,
+        .i2c_addr = LCD_ADDR,
+        .word_wrap = LCD_WRAP_LINE
+    };
+    lcd_handle_t lcd;
+    ESP_ERROR_CHECK(lcd_initialize(&lcd, &lcd_cfg));
 
-    char* text = "Hello, World!";
-    while (*text) {
-        uint8_t test = *text++; 
-        ESP_ERROR_CHECK(lcd_send_data(&lcd, test));
-    }
-
+    
+    ESP_ERROR_CHECK(lcd_printf(&lcd, "Temp: 0.00 C\nPres: 0.00 Pa"));
+    double temperature = 0, old_temperature = 0, pressure = 0, old_pressure = 0;
+    
     while (1) {
         mcp2515_frame_t received_data;
 
@@ -99,15 +100,23 @@ void app_main(void) {
                     temperature = data.d;
                     break;
                 case NETWORK_PRESSURE_ID:
-                    pressure = data.d;
+                    pressure = data.d / 100.0;
                     break;
                 default:
                     break;
             }
         }
-        // To be replaced with LCD display when i develop the actual driver
-        printf("Temperature: %.02f C\n", temperature);
-        printf("Pressure: %.02f Pa\n", pressure);
-        vTaskDelay(10);
+
+        if(temperature != old_temperature){
+            ESP_ERROR_CHECK(lcd_set_cursor(&lcd, LCD_LINE_1, 0));
+            ESP_ERROR_CHECK(lcd_printf(&lcd, "Temp: %.2f C\n", temperature));
+            old_temperature = temperature;
+        }
+
+        if(pressure != old_pressure){
+            ESP_ERROR_CHECK(lcd_set_cursor(&lcd, LCD_LINE_2, 0));
+            ESP_ERROR_CHECK(lcd_printf(&lcd, "Pres: %.2f kPa\n", pressure));
+            old_pressure = pressure;
+        }
     }
 }
