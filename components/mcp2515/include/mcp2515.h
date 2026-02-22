@@ -145,7 +145,6 @@ typedef enum {
     MCP2515_RXB1
 } mcp_rxb_t;
 
-// maybe make it universal for both transmit and receive
 /**
  * @brief MCP2515 received message frame.
  */
@@ -259,7 +258,7 @@ esp_err_t mcp2515_receive(mcp2515_handle_t* mcp, mcp2515_frame_t* frame);
  *      - ESP_FAIL: CAN bus timing configuration failed.
  */
 esp_err_t mcp2515_configure_timing(mcp2515_handle_t* mcp, mcp2515_crystal_t crystal, mcp2515_bitrate_t bitrate);
-/** @} */
+
 
 /**
  * @brief set CAN bus filters.
@@ -303,5 +302,5 @@ esp_err_t mcp2515_set_mask(mcp2515_handle_t* mcp, mcp_mask_t mask_reg, uint32_t 
  *      - ESP_ERR_INVALID_ARG: frame or data is NULL or dlc > 8.
  */
 esp_err_t mcp2515_create_frame(mcp2515_frame_t* frame, uint8_t* data, uint8_t dlc, uint32_t id, bool extended);
-
+/** @} */
 #endif
