@@ -7,7 +7,6 @@
 #include "freertos/task.h"
 #include "sdkconfig.h"
 
-#define BMP_ADDR 0x76
 #define BMP_FORCE_TIMEOUT 100
 
 #define TEMP_CALIBRATION 0x88
@@ -75,46 +74,47 @@ static int32_t bmp280_compensate_t(bmp280_t* dev, const int raw_temp);
  */
 static uint32_t bmp280_compensate_p(bmp280_t* dev, const int32_t raw_press);
 
-esp_err_t bmp280_initialize(bmp280_t* bmp280, bmp280_mode_t work_mode, i2c_master_bus_handle_t bus_handle) {
+esp_err_t bmp280_initialize(bmp280_t* bmp280, const bmp280_config_t* cfg) {
+    if(!cfg) return ESP_ERR_INVALID_ARG;
     esp_err_t err;
+
+    uint32_t speed = cfg->scl_speed_hz ? cfg->scl_speed_hz : 100000;
+
     i2c_device_config_t dev_cfg = {
         .dev_addr_length = I2C_ADDR_BIT_7,
-        .device_address = BMP_ADDR,
-        .scl_speed_hz = 100000};
+        .device_address = cfg->i2c_addr,
+        .scl_speed_hz = speed};
 
-    i2c_master_dev_handle_t i2c;
-    err = i2c_master_bus_add_device(bus_handle, &dev_cfg, &i2c);
-
-    bmp280->i2c = i2c;
+    err = i2c_master_bus_add_device(cfg->bus, &dev_cfg, &bmp280->i2c);
+    if(err != ESP_OK) return err;
     bmp280->initialized = false;
 
-    if (err == ESP_OK)
-        err = bmp280_load_calibration(bmp280);
-    else
-        return err;
+    err = bmp280_load_calibration(bmp280);
+    if(err != ESP_OK) return err;
 
-    bmp280->work_mode = work_mode;
+    bmp280->work_mode = cfg->work_mode;
 
-    if (work_mode == BMP_NORMAL) {
+    if (bmp280->work_mode == BMP_NORMAL) {
         uint8_t tx_buf[2];
         tx_buf[0] = CONFIG_REG;
         tx_buf[1] = (BMP_OSRS_X2 << CONFIG_T_SB_POS) | (BMP_OSRS_X16 << CONFIG_FILTER_POS);
 
-        err = i2c_master_transmit(i2c, tx_buf, sizeof(tx_buf), portMAX_DELAY);
+        err = i2c_master_transmit(bmp280->i2c, tx_buf, sizeof(tx_buf), portMAX_DELAY);
         if (err != ESP_OK) return err;
 
         tx_buf[0] = CONTROL_REG;
-        tx_buf[1] = (BMP_OSRS_X1 << CTRL_OSRS_T_POS) | (BMP_OSRS_X1 << CTRL_OSRS_P_POS) | work_mode;
-        err = i2c_master_transmit(i2c, tx_buf, sizeof(tx_buf), portMAX_DELAY);
+        tx_buf[1] = (BMP_OSRS_X1 << CTRL_OSRS_T_POS) | (BMP_OSRS_X1 << CTRL_OSRS_P_POS) | bmp280->work_mode;
+        err = i2c_master_transmit(bmp280->i2c, tx_buf, sizeof(tx_buf), portMAX_DELAY);
         if (err != ESP_OK) return err;
     }
 
     bmp280->initialized = true;
-    return err;
+    return ESP_OK;
 }
 
 esp_err_t bmp280_read(bmp280_t* bmp280, bmp280_measurements* measurements) {
     esp_err_t err;
+    if(!bmp280) return ESP_ERR_INVALID_ARG;
     if (!bmp280->initialized) {
         printf("Measurement error, bmp280 is uninitialized!\n");
         return ESP_ERR_INVALID_STATE;
@@ -151,11 +151,8 @@ esp_err_t bmp280_read(bmp280_t* bmp280, bmp280_measurements* measurements) {
 }
 
 esp_err_t bmp280_force_measurement(bmp280_t* bmp280, const uint16_t timeout_ms) {
-    if (!bmp280 || !bmp280->initialized)
-        return ESP_ERR_INVALID_STATE;
-
-    if (bmp280->work_mode != BMP_FORCE)
-        return ESP_ERR_INVALID_ARG;
+    if(!bmp280 || bmp280->work_mode != BMP_FORCE) return ESP_ERR_INVALID_ARG;
+    if (!bmp280->initialized) return ESP_ERR_INVALID_STATE;
 
     esp_err_t err;
     uint8_t tx_buf[2] = {

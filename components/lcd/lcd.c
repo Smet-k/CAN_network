@@ -120,7 +120,7 @@ static uint8_t lcd_line_addr[2] = {
 };
 
 esp_err_t lcd_initialize(lcd_handle_t* lcd, lcd_config_t* cfg){
-    if(!lcd || !cfg || !cfg->bus) return ESP_ERR_INVALID_ARG;
+    if(!cfg || !cfg->bus) return ESP_ERR_INVALID_ARG;
 
     lcd->config = *cfg;
 

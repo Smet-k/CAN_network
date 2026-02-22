@@ -11,6 +11,7 @@
 #include "mcp2515.h"
 #include "sdkconfig.h"
 
+#define BMP_ADDR 0x76
 #define BMP_SDA_GPIO GPIO_NUM_21
 #define BMP_SCL_GPIO GPIO_NUM_22
 
@@ -47,8 +48,14 @@ void app_main(void) {
     i2c_master_bus_handle_t bus_handle;
     ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_buscfg, &bus_handle));
 
+    bmp280_config_t bmp_cfg = {
+        .bus = bus_handle,
+        .i2c_addr = BMP_ADDR,
+        .work_mode = BMP_NORMAL
+    };
+
     bmp280_t bmp280;
-    ESP_ERROR_CHECK(bmp280_initialize(&bmp280, BMP_NORMAL, bus_handle));
+    ESP_ERROR_CHECK(bmp280_initialize(&bmp280, &bmp_cfg));
 
     spi_bus_config_t spi_buscfg = {
         .sclk_io_num = MCP_SCK,
@@ -69,7 +76,7 @@ void app_main(void) {
 
     ESP_ERROR_CHECK(mcp2515_init(&mcp2515, &mcp_cfg));
     ESP_ERROR_CHECK(mcp2515_configure_timing(&mcp2515, MCP2515_CRYSTAL_8MHZ, MCP2515_BITRATE_125KBPS));
-    ESP_ERROR_CHECK(mcp2515_set_opmode(&mcp2515, MCP2515_OPMODE_NORMAL));  // tmp
+    ESP_ERROR_CHECK(mcp2515_set_opmode(&mcp2515, MCP2515_OPMODE_NORMAL)); 
 
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(1000));

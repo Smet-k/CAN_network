@@ -75,13 +75,20 @@ typedef struct {
     bool initialized; /**< Set true after successful initialization */
 } bmp280_t;
 
+typedef struct {
+    i2c_master_bus_handle_t bus;
+    uint32_t scl_speed_hz;
+    uint8_t i2c_addr;
+
+    bmp280_mode_t work_mode;
+    
+} bmp280_config_t;
 /**
  * @brief Initialize bmp280 device.
  *
  * The bmp280 handle must remain valid for the lifetime of the device usage.
  * @param[out] bmp280 pointer to bmp280 handle.
- * @param[in] work_mode bmp280 operating mode.
- * @param[in] bus_handle Initialized I2C bus handle.
+ * @param[in] cfg bmp280 configuration.
  *
  * @return
  *      - ESP_OK: BMP280 initialized successfully.
@@ -89,8 +96,7 @@ typedef struct {
  *      - ESP_ERR_TIMEOUT: I2C communication timed out.
  *      - ESP_FAIL: Failed to read calibration data or configure sensor.
  */
-esp_err_t bmp280_initialize(bmp280_t* bmp280, bmp280_mode_t work_mode,
-                            i2c_master_bus_handle_t bus_handle);
+esp_err_t bmp280_initialize(bmp280_t* bmp280, const bmp280_config_t* cfg);
 
 /**
  * @brief read from bmp280 data registers.
@@ -102,6 +108,8 @@ esp_err_t bmp280_initialize(bmp280_t* bmp280, bmp280_mode_t work_mode,
  *
  * @return
  *      - ESP_OK: data read successfully.
+ *      - ESP_ERR_INVALID_ARG: bmp280 is NULL.
+ *      - ESP_ERR_INVALID_STATE: bmp280 is uninitialized
  */
 esp_err_t bmp280_read(bmp280_t* bmp280, bmp280_measurements* measurements);
 
@@ -113,6 +121,8 @@ esp_err_t bmp280_read(bmp280_t* bmp280, bmp280_measurements* measurements);
  *
  * @return
  *      - ESP_OK: measurement has been taken.
+ *      - ESP_ERR_INVALID_ARG: bmp280 is NULL or working in normal mode.
+ *      - ESP_ERR_INVALID_STATE: bmp280 is uninitialized.
  */
 esp_err_t bmp280_force_measurement(bmp280_t* bmp280, const uint16_t timeout_ms);
 
