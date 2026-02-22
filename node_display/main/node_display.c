@@ -51,7 +51,6 @@ void app_main(void) {
         .sda_io_num = LCD_SDA,
         .scl_io_num = LCD_SCL,
         .glitch_ignore_cnt = 7,
-        // MAYBE TO BE REMOVED
         .flags.enable_internal_pullup = true,
         .clk_source = I2C_CLK_SRC_DEFAULT
     };
@@ -75,15 +74,15 @@ void app_main(void) {
     lcd_config_t lcd_cfg = {
         .bus = bus_handle,
         .i2c_addr = LCD_ADDR,
-        .word_wrap = LCD_WRAP_LINE
+        .word_wrap = LCD_WRAP_LINE,
+        .line_cfg = LCD_LINE_2
     };
     lcd_handle_t lcd;
     ESP_ERROR_CHECK(lcd_initialize(&lcd, &lcd_cfg));
 
-    
-    ESP_ERROR_CHECK(lcd_printf(&lcd, "Temp: 0.00 C\nPres: 0.00 Pa"));
+    ESP_ERROR_CHECK(lcd_printf(&lcd, "Temp: 0.00 C\nPres: 0.00 KPa"));
     double temperature = 0, old_temperature = 0, pressure = 0, old_pressure = 0;
-    
+
     while (1) {
         mcp2515_frame_t received_data;
 
@@ -115,7 +114,7 @@ void app_main(void) {
 
         if(pressure != old_pressure){
             ESP_ERROR_CHECK(lcd_set_cursor(&lcd, LCD_LINE_2, 0));
-            ESP_ERROR_CHECK(lcd_printf(&lcd, "Pres: %.2f kPa\n", pressure));
+            ESP_ERROR_CHECK(lcd_printf(&lcd, "Pres: %.2f kPa", pressure));
             old_pressure = pressure;
         }
     }

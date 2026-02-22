@@ -26,33 +26,93 @@
 #define CMD_SET_SGRAM_ADDR   0x40
 
 // FUNCTION SET
-#define DL_PARAM(bit) (bit << 0x04)
-#define N_PARAM(bit)  (bit << 0x03)
-#define F_PARAM(bit)  (bit << 0x02)
+#define DL_PARAM(bit) ((bit) << 0x04)
+#define N_PARAM(bit)  ((bit) << 0x03)
+#define F_PARAM(bit)  ((bit) << 0x02)
 
 // DISPLAY CTRL
-#define D_PARAM(bit)  (bit << 0x02)
-#define C_PARAM(bit)  (bit << 0x01)
-#define B_PARAM(bit)  (bit << 0x00)
+#define D_PARAM(bit)  ((bit) << 0x02)
+#define C_PARAM(bit)  ((bit) << 0x01)
+#define B_PARAM(bit)  ((bit) << 0x00)
 
 // ENTRY MODE
-#define ID_PARAM(bit) (bit << 0x01)
-#define S_PARAM(bit)  (bit << 0x00)
+#define ID_PARAM(bit) ((bit) << 0x01)
+#define S_PARAM(bit)  ((bit) << 0x00)
 
 // CURSOR SHIFT
-#define SC_PARAM(bit) (bit << 0x03)
-#define RL_PARAM(bit) (bit << 0x02)
+#define SC_PARAM(bit) ((bit) << 0x03)
+#define RL_PARAM(bit) ((bit) << 0x02)
 
 typedef enum {
     LCD_RS_INSTRUCTION = 0x00,
     LCD_RS_DATA
 } lcd_rs_t;
 
+/**
+ * @brief Writes one byte to the LCD.
+ * 
+ * @param[in] lcd LCD handle.
+ * @param[in] data Data to be written.
+ * @param[in] rs Register selection signal.
+ * 
+ * @return
+ *      - ESP_OK: data written successfully.
+ */
 static esp_err_t lcd_write_8_bit(lcd_handle_t* lcd, uint8_t data, lcd_rs_t rs);
+
+/**
+ * @brief Writes 4 bit nibble to data lines D4-D7 pins.
+ * 
+ * @param[in] lcd LCD handle.
+ * @param[in] data Data to be written.
+ * @param[in] rs Register selection signal.
+ * 
+ * @return
+ *      - ESP_OK: Data written successfully.
+ */
 static esp_err_t lcd_write_4_bit(lcd_handle_t* lcd, uint8_t data, lcd_rs_t rs);
+
+/**
+ * @brief Pulses Enable pin of LCD display.
+ * 
+ * @param[in] lcd LCD Handle.
+ * @param[in] data Data to be sent with pulse.
+ * 
+ * @return 
+ *      - ESP_OK: Data sent successfully.
+ */
 static esp_err_t lcd_pulse_enable(lcd_handle_t* lcd, uint8_t data);
+
+/**
+ * @brief Performs a part of 4-bit initialization procedure.
+ * 
+ * @param[in] lcd LCD handle.
+ * 
+ * @return
+ *      - ESP_OK: Initialization successfull.
+ */
 static esp_err_t lcd_init_DL(lcd_handle_t* lcd);
+
+/**
+ * @brief Moves the LCD cursor to a new line.
+ * 
+ * @param[in] lcd LCD handle.
+ * 
+ * @return
+ *      - ESP_OK: Moved the cursor successfully.
+ *      - ESP_ERR_INVALID_ARG: If cursor will be moved out of bounds.
+ */
 static esp_err_t lcd_newline(lcd_handle_t* lcd);
+
+/**
+ * @brief  Updates the display control settings.
+ * 
+ * @param[in] lcd LCD handle.
+ * 
+ * @return
+ *      - ESP_OK: settings updated successfully.
+ */
+static esp_err_t lcd_update_display_ctrl(lcd_handle_t* lcd);
 
 static uint8_t lcd_line_addr[2] = {
     0x80,
@@ -66,10 +126,12 @@ esp_err_t lcd_initialize(lcd_handle_t* lcd, lcd_config_t* cfg){
 
     esp_err_t err;
     
+    uint32_t speed = cfg->scl_speed_hz ? cfg->scl_speed_hz : 100000;
+
     i2c_device_config_t dev_cfg = {
         .dev_addr_length = I2C_ADDR_BIT_7,
         .device_address = cfg->i2c_addr,
-        .scl_speed_hz = 100000};
+        .scl_speed_hz = speed};
     
     err = i2c_master_bus_add_device(
         lcd->config.bus,
@@ -89,12 +151,18 @@ esp_err_t lcd_initialize(lcd_handle_t* lcd, lcd_config_t* cfg){
         lcd->config.rows > LCD_MAX_ROWS)
         return ESP_ERR_INVALID_ARG;
 
+    if (lcd->config.rows > 1 && lcd->config.font_cfg == LCD_5x10_FONT)
+        return ESP_ERR_INVALID_ARG;
+
     vTaskDelay(pdMS_TO_TICKS(100));
 
     lcd_init_DL(lcd);
 
     uint8_t init_cmd;
-    init_cmd = CMD_FUNCTION_SET | DL_PARAM(0) | N_PARAM(1) | F_PARAM(0);
+    
+    init_cmd = CMD_FUNCTION_SET | DL_PARAM(0) | 
+                N_PARAM(lcd->config.line_cfg) |
+                F_PARAM(lcd->config.font_cfg);
     err = lcd_write_8_bit(lcd, init_cmd, LCD_RS_INSTRUCTION);
     if(err != ESP_OK) return err;
     esp_rom_delay_us(50); 
@@ -119,29 +187,9 @@ esp_err_t lcd_initialize(lcd_handle_t* lcd, lcd_config_t* cfg){
     return ESP_OK;
 }
 
-esp_err_t lcd_printf(lcd_handle_t* lcd, const char* fmt, ...){
-    if(!lcd || !fmt) return ESP_ERR_INVALID_ARG;
-
-    char buffer[LCD_MAX_ROWS * LCD_MAX_COLS + 1];
-
-    va_list args;
-    va_start(args, fmt);
-
-    int len = vsnprintf(buffer, sizeof(buffer), fmt, args);
-
-    va_end(args);
-
-    if (len < 0)
-        return ESP_FAIL;
-
-    if (len >= sizeof(buffer))
-        return ESP_ERR_NO_MEM;
-
-    return lcd_print(lcd, buffer);
-}
-
-esp_err_t lcd_print(lcd_handle_t* lcd, char* text){
+esp_err_t lcd_print(lcd_handle_t* lcd, const char* text){
     if(!lcd || !text) return ESP_ERR_INVALID_ARG;
+    if(!lcd->initialized) return ESP_ERR_INVALID_STATE;
     esp_err_t err;
     while(*text){
         if(*text == '\n'){
@@ -164,8 +212,31 @@ esp_err_t lcd_print(lcd_handle_t* lcd, char* text){
     return ESP_OK;
 }
 
+esp_err_t lcd_printf(lcd_handle_t* lcd, const char* fmt, ...){
+    if(!lcd || !fmt) return ESP_ERR_INVALID_ARG;
+    if(!lcd->initialized) return ESP_ERR_INVALID_STATE;
+
+    char buffer[LCD_MAX_ROWS * LCD_MAX_COLS];
+
+    va_list args;
+    va_start(args, fmt);
+
+    int len = vsnprintf(buffer, sizeof(buffer), fmt, args);
+
+    va_end(args);
+
+    if (len < 0)
+        return ESP_FAIL;
+
+    if (len >= sizeof(buffer))
+        return ESP_ERR_NO_MEM;
+
+    return lcd_print(lcd, buffer);
+}
+
 esp_err_t lcd_set_cursor(lcd_handle_t* lcd, lcd_line_t line, uint8_t offset){
     if(!lcd) return ESP_ERR_INVALID_ARG;
+    if(!lcd->initialized) return ESP_ERR_INVALID_STATE;
 
     if(line != LCD_LINE_1 && line != LCD_LINE_2) 
         return ESP_ERR_INVALID_ARG;
@@ -182,6 +253,8 @@ esp_err_t lcd_set_cursor(lcd_handle_t* lcd, lcd_line_t line, uint8_t offset){
 
 esp_err_t lcd_clear(lcd_handle_t* lcd){
     if(!lcd) return ESP_ERR_INVALID_ARG;
+    if(!lcd->initialized) return ESP_ERR_INVALID_STATE;
+
     esp_err_t err = lcd_write_8_bit(lcd, CMD_CLEAR_DISPLAY, LCD_RS_INSTRUCTION);
     vTaskDelay(pdMS_TO_TICKS(10));
     if(err != ESP_OK) return err;
@@ -263,4 +336,37 @@ static esp_err_t lcd_write_4_bit(lcd_handle_t* lcd, uint8_t data, lcd_rs_t rs){
     err = i2c_master_transmit(lcd->i2c, &msg, 1, I2C_TIMEOUT_MS);
     if (err != ESP_OK) return err;
     return lcd_pulse_enable(lcd, msg);
+}
+
+esp_err_t lcd_set_cursor_enabled(lcd_handle_t* lcd, bool enable) {
+    if (!lcd) return ESP_ERR_INVALID_ARG;
+
+    lcd->cursor_cfg = enable;
+    return lcd_update_display_ctrl(lcd);
+}
+
+esp_err_t lcd_set_blink_enabled(lcd_handle_t* lcd, bool enable) {
+    if (!lcd) return ESP_ERR_INVALID_ARG;
+
+    lcd->blink_cfg = enable;
+    return lcd_update_display_ctrl(lcd);
+}
+
+esp_err_t lcd_set_display_enabled(lcd_handle_t* lcd, bool enable) {
+    if (!lcd) return ESP_ERR_INVALID_ARG;
+
+    lcd->display_on = enable;
+    return lcd_update_display_ctrl(lcd);
+}
+
+static esp_err_t lcd_update_display_ctrl(lcd_handle_t* lcd){
+    uint8_t cmd = CMD_DISPLAY_CTRL;
+
+    if (lcd->display_on) cmd |= D_PARAM(1);
+    if (lcd->cursor_cfg) cmd |= C_PARAM(1);
+    if (lcd->blink_cfg)  cmd |= B_PARAM(1);
+
+    esp_err_t err = lcd_write_8_bit(lcd, cmd, LCD_RS_INSTRUCTION);
+    esp_rom_delay_us(50); 
+    return err;
 }
