@@ -99,7 +99,7 @@ void app_main(void) {
                     temperature = data.d;
                     break;
                 case NETWORK_PRESSURE_ID:
-                    pressure = data.d / 100.0;
+                    pressure = data.d / 1000.0;
                     break;
                 default:
                     break;
